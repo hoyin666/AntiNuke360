@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.1 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="description" content="AntiNuke360 v1.1.1 - 永久免費、永久開源的 Discord 伺服器防護機制">
     <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
-    <title>AntiNuke360 v1.1 - Discord 伺服器防護機制</title>
+    <title>AntiNuke360 v1.1.1 - Discord 伺服器防護機制</title>
     <style>
         * {
             margin: 0;
@@ -287,6 +287,10 @@
             text-transform: uppercase;
         }
 
+        .badge.fixed {
+            background: #f59e0b;
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -480,7 +484,7 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.1 - 最新版本</div>
+        <div class="version">v1.1.1 - 最新穩定版</div>
         <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
     </header>
 
@@ -544,12 +548,12 @@
                     <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>伺服器快照系統<span class="badge">新增 v1.1</span></h3>
+                    <h3>伺服器快照系統<span class="badge">v1.1+</span></h3>
                     <p>自動建立伺服器結構快照，遭受攻擊後可完全還原。快照保留 72 小時。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>一鍵還原功能<span class="badge">新增 v1.1</span></h3>
-                    <p>攻擊發生時自動詢問是否還原，或使用指令手動還原伺服器架構。</p>
+                    <h3>一鍵還原功能<span class="badge fixed">v1.1.1 修復</span></h3>
+                    <p>攻擊發生時自動詢問是否還原，完全恢復伺服器架構。修復了頻道遺漏問題。</p>
                 </div>
                 <div class="feature-card">
                     <h3>全域黑名單系統</h3>
@@ -577,7 +581,7 @@
                 </div>
                 <div class="feature-card">
                     <h3>自訂狀態文字</h3>
-                    <p>內建多條狀態文字，機器人會自動輪替顯示，提高可見度與辨識度。</p>
+                    <p>內建 24 條狀態文字，機器人會自動輪替顯示，提高可見度與辨識度。</p>
                 </div>
             </div>
         </div>
@@ -603,8 +607,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.1)：
-                    <pre><code>python AntiNuke360_v1.1.py</code></pre>
+                <li>啟動機器人 (v1.1.1)：
+                    <pre><code>python AntiNuke360_v1.1.1.py</code></pre>
                 </li>
             </ol>
 
@@ -634,8 +638,8 @@
             <h3>/scan-blacklist</h3>
             <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。</p>
 
-            <h3>/restore-snapshot <span class="badge">新增 v1.1</span></h3>
-            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。</p>
+            <h3>/restore-snapshot <span class="badge fixed">v1.1.1 改進</span></h3>
+            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。v1.1.1 修復了頻道遺漏和權限覆蓋問題。</p>
 
             <h3>/add-server-white [ID]</h3>
             <p>將指定機器人加入本伺服器白名單。需要管理員權限。</p>
@@ -675,8 +679,8 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
-            <h3>v1.1 相比 v1.0 有什麼新功能？</h3>
-            <p>v1.1 新增了伺服器快照系統和一鍵還原功能。當伺服器遭受核打擊攻擊時，機器人可以自動詢問並還原最近 72 小時內的快照，完全恢復伺服器結構。</p>
+            <h3>v1.1.1 相比 v1.1 有什麼改進？</h3>
+            <p>v1.1.1 修復了還原功能中的多個缺陷：修復了頻道刪除遺漏問題、改進了角色順位調整邏輯、增強了權限覆蓋還原的精確度，以及改進了錯誤處理和邊界情況。現在還原功能更加穩定可靠。</p>
 
             <h3>快照會保留多久？</h3>
             <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照會自動清理。管理員可在此期間使用 /restore-snapshot 指令進行還原。</p>
@@ -711,13 +715,13 @@
                 <li>開發者 ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.1（2025 年 11 月）</li>
+                <li>目前版本：v1.1.1（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
 
     <footer>
-        AntiNuke360 v1.1 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.1.1 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
@@ -764,4 +768,4 @@
         });
     </script>
 </body>
-</html>
+    </html>
