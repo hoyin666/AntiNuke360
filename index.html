@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AntiNuke360 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection">
+    <title>AntiNuke360 - Discord 伺服器防護機制</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #f5f5f5;
+            min-height: 100vh;
+            background: url("index_bg.jpg") center center / cover fixed no-repeat;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: -1;
+        }
+
+        header {
+            padding: 60px 20px 40px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        nav {
+            background: rgba(10, 10, 10, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            display: block;
+            padding: 12px 18px;
+            color: #f5f5f5;
+            text-decoration: none;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        nav a:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+        }
+
+        section {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 20px;
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .glass-panel {
+            background: rgba(15, 15, 15, 0.65);
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+            padding: 28px 22px 30px 22px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 14px 14px 16px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .feature-card h3 {
+            margin-top: 0;
+            font-size: 18px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 10px 22px;
+            background: #4f7dfa;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .button:hover {
+            background: #365ed1;
+            transform: translateY(-1px);
+        }
+
+        .button.secondary {
+            background: transparent;
+            color: #f5f5f5;
+        }
+
+        .button.secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.55);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+        }
+
+        pre {
+            background: rgba(0, 0, 0, 0.75);
+            color: #f8f8f2;
+            padding: 12px 14px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 12px 0;
+            font-size: 13px;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 28px 20px 32px 20px;
+            font-size: 13px;
+            color: #cccccc;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 18px;
+            margin-top: 22px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .stat-number {
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.85;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 32px;
+            }
+
+            h2 {
+                font-size: 22px;
+            }
+
+            nav ul {
+                flex-direction: column;
+            }
+
+            nav a {
+                text-align: center;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>AntiNuke360</h1>
+        <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#intro">介紹</a></li>
+            <li><a href="#features">功能</a></li>
+            <li><a href="#installation">安裝</a></li>
+            <li><a href="#commands">指令</a></li>
+            <li><a href="#faq">常見問題</a></li>
+            <li><a href="#contact">聯絡</a></li>
+        </ul>
+    </nav>
+
+    <section id="intro">
+        <div class="glass-panel">
+            <h2>關於 AntiNuke360</h2>
+            <p>AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對核打擊 (Nuke) 攻擊進行防禦。我不像安全衛士360那麼流氓，但我至少能防止99.99%的核打擊。</p>
+            <p style="margin-top: 12px;">完全開源、社群驅動、100%透明。</p>
+
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">開源</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">0</div>
+                    <div class="stat-label">授權費用</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">永久</div>
+                    <div class="stat-label">免費使用</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">多層</div>
+                    <div class="stat-label">防護機制</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features">
+        <div class="glass-panel">
+            <h2>核心功能</h2>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>自動反 Nuke 防護</h3>
+                    <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊，防止伺服器被一鍵炸毁。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>全域黑名單系統</h3>
+                    <p>維護全域黑名單，記錄已知惡意機器人與攻擊者，新成員加入時會即時比對並強制移除。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>本地伺服器白名單</h3>
+                    <p>每個伺服器都可獨立管理白名單，可信任的機器人不會被防護系統干擾。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>全域白名單系統</h3>
+                    <p>由開發者維護的全域白名單，允許特定機器人在所有伺服器中豁免防護。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>稽核日誌監控</h3>
+                    <p>監控頻道、角色、成員和 Webhook 的建立與刪除，追蹤每一次敏感操作。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>權限錯誤監控</h3>
+                    <p>自動偵測權限不足的情況，當問題累積到一定次數會通知伺服器擁有者，必要時自動離開伺服器。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>成員加入掃描</h3>
+                    <p>新成員加入時自動檢查黑名單和白名單，將風險降到最低。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>自訂狀態文字</h3>
+                    <p>內建多條狀態文字，機器人會自動輪替顯示，提高可見度與辨識度。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="installation">
+        <div class="glass-panel">
+            <h2>安裝和設置</h2>
+
+            <h3>先決條件</h3>
+            <ul>
+                <li>Python 3.8 或更高版本</li>
+                <li>discord.py</li>
+                <li>python-dotenv</li>
+            </ul>
+
+            <h3>安裝步驟</h3>
+            <ol>
+                <li>複製倉庫或下載程式碼。</li>
+                <li>建立 <code>.env</code> 檔案並設置 Discord Bot Token：
+                    <pre><code>DISCORD_TOKEN=your_discord_bot_token_here</code></pre>
+                </li>
+                <li>安裝依賴：
+                    <pre><code>pip install -r requirements.txt</code></pre>
+                </li>
+                <li>啟動機器人：
+                    <pre><code>python AntiNuke360_v1.0.py</code></pre>
+                </li>
+            </ol>
+
+            <h3>Discord Bot 設置</h3>
+            <ol>
+                <li>前往 Discord Developer Portal (https://discord.com/developers/applications)。</li>
+                <li>建立新 Application，並在 Bot 分頁建立機器人。</li>
+                <li>複製 Bot Token 到 <code>.env</code> 檔案。</li>
+                <li>在 OAuth2 的 URL Generator 中勾選所需權限：
+                    <ul>
+                        <li>administrator（或個別勾選 ban members、kick members、manage channels、manage roles、manage webhooks）。</li>
+                    </ul>
+                </li>
+                <li>使用生成的邀請連結將機器人加入伺服器。</li>
+            </ol>
+
+            <div class="button-group">
+                <a href="https://github.com/hoyin666/AntiNuke360" class="button">GitHub 倉庫</a>
+                <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">機器人列表頁面</a>
+            </div>
+        </div>
+    </section>
+
+    <section id="commands">
+        <div class="glass-panel">
+            <h2>管理員指令</h2>
+
+            <h3>/status</h3>
+            <p>查看 AntiNuke360 的當前運行狀態、防護參數與黑名單統計。</p>
+
+            <h3>/scan-blacklist</h3>
+            <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。</p>
+
+            <h3>/add-server-white [ID]</h3>
+            <p>將指定機器人加入本伺服器白名單。需要管理員權限。</p>
+
+            <h3>/remove-server-white [ID]</h3>
+            <p>從本伺服器白名單移除指定機器人。需要管理員權限。</p>
+
+            <h3>/server-whitelist</h3>
+            <p>查看本伺服器目前的白名單成員列表。需要管理員權限。</p>
+
+            <h2 style="margin-top: 32px;">開發者指令</h2>
+            <p style="font-size: 14px; color: #d0d0d0;">以下指令僅限開發者使用。</p>
+
+            <h3>/add-black [ID] [原因]</h3>
+            <p>將機器人加入全域黑名單，並在所有伺服器中掃描與停權。</p>
+
+            <h3>/remove-black [ID]</h3>
+            <p>從全域黑名單移除指定機器人。</p>
+
+            <h3>/add-white [ID] [原因]</h3>
+            <p>將機器人加入全域白名單。</p>
+
+            <h3>/remove-white [ID]</h3>
+            <p>從全域白名單移除指定機器人。</p>
+
+            <h3>/blacklist</h3>
+            <p>查看全域黑名單，顯示前若干筆記錄。</p>
+
+            <h3>/whitelist-list</h3>
+            <p>查看全域白名單，顯示前若干筆記錄。</p>
+
+            <h3>/scan-all-guilds</h3>
+            <p>在所有伺服器中掃描並停權全域黑名單成員。</p>
+        </div>
+    </section>
+
+    <section id="faq">
+        <div class="glass-panel">
+            <h2>常見問題</h2>
+
+            <h3>AntiNuke360 是完全免費嗎？</h3>
+            <p>是。AntiNuke360 永久免費，亦永久開源，不會收取任何費用。</p>
+
+            <h3>可以修改並重新發佈 AntiNuke360 嗎？</h3>
+            <p>可以。本專案採用 MIT License，只要保留原始許可聲明即可。</p>
+
+            <h3>防護參數可以調整嗎？</h3>
+            <p>目前防護參數固定為 10 秒內最多 7 次敏感操作，無法調整，以確保風險控制在預期範圍內。</p>
+
+            <h3>機器人需要哪些權限？</h3>
+            <p>建議給予 administrator 權限；若不方便，可至少給予 ban members、kick members、manage channels、manage roles、manage webhooks。</p>
+
+            <h3>支援多少伺服器？</h3>
+            <p>理論上不限制伺服器數量，實際上取決於你所使用的託管環境資源。</p>
+        </div>
+    </section>
+
+    <section id="contact">
+        <div class="glass-panel">
+            <h2>聯絡與開源資訊</h2>
+
+            <p>如有錯誤回報、功能建議或安全問題，建議透過 GitHub Issue 回報。</p>
+
+            <div class="button-group">
+                <a href="https://github.com/hoyin666/AntiNuke360" class="button">前往 GitHub</a>
+                <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">查看機器人頁面</a>
+            </div>
+
+            <h3 style="margin-top: 28px;">專案資訊</h3>
+            <ul>
+                <li>開發者 ID：800536911378251787</li>
+                <li>授權條款：MIT License</li>
+                <li>主要語言：Python</li>
+                <li>目前版本：v1.0（2025 年 11 月）</li>
+            </ul>
+        </div>
+    </section>
+
+    <footer>
+        AntiNuke360 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+    </footer>
+</body>
+</html>
