@@ -21,11 +21,12 @@
             background: url("index_bg.jpg") center center / cover fixed no-repeat;
         }
 
+        /* 淺一些的遮罩，讓背景圖更突出 */
         body::before {
             content: "";
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.45);
+            background: rgba(0, 0, 0, 0.25);
             z-index: -1;
         }
 
@@ -44,6 +45,7 @@
             opacity: 0.9;
         }
 
+        /* 導覽列基礎樣式 */
         nav {
             background: rgba(10, 10, 10, 0.65);
             backdrop-filter: blur(12px);
@@ -54,16 +56,31 @@
             z-index: 100;
         }
 
+        .nav-inner {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+        }
+
+        .nav-title {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+        }
+
         nav ul {
             list-style: none;
             display: flex;
-            justify-content: center;
+            justify-content: flex-end;
             flex-wrap: wrap;
         }
 
         nav a {
             display: block;
-            padding: 12px 18px;
+            padding: 10px 14px;
             color: #f5f5f5;
             text-decoration: none;
             font-size: 14px;
@@ -77,8 +94,28 @@
             color: #ffffff;
         }
 
+        /* 漢堡選單控制 */
+        .nav-toggle {
+            display: none;
+        }
+
+        .nav-toggle-label {
+            display: none;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .nav-toggle-label span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            margin: 4px 0;
+            background: #f5f5f5;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
         section {
-            max-width: 1000px;
+            max-width: 960px;
             margin: 0 auto;
             padding: 40px 20px;
         }
@@ -106,13 +143,13 @@
         }
 
         .glass-panel {
-            background: rgba(15, 15, 15, 0.65);
+            background: rgba(15, 15, 15, 0.55);
             border-radius: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
-            padding: 28px 22px 30px 22px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+            padding: 26px 22px 28px 22px;
         }
 
         .features-grid {
@@ -123,7 +160,7 @@
         }
 
         .feature-card {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.12);
             border-radius: 12px;
             padding: 14px 14px 16px 14px;
             border: 1px solid rgba(255, 255, 255, 0.18);
@@ -207,11 +244,11 @@
         }
 
         .stat-box {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.12);
             border-radius: 12px;
             padding: 14px;
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.25);
         }
 
         .stat-number {
@@ -221,7 +258,7 @@
 
         .stat-label {
             font-size: 12px;
-            opacity: 0.85;
+            opacity: 0.9;
             margin-top: 4px;
         }
 
@@ -234,13 +271,44 @@
                 font-size: 22px;
             }
 
+            /* 手機上：顯示漢堡按鈕、隱藏原本橫向選單 */
+            .nav-toggle {
+                display: none;
+            }
+
+            .nav-toggle-label {
+                display: block;
+            }
+
             nav ul {
+                position: static;
+                width: 100%;
                 flex-direction: column;
+                display: none;
+                margin-top: 6px;
             }
 
             nav a {
                 text-align: center;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+            }
+
+            /* 勾選時顯示選單 */
+            #nav-toggle-checkbox:checked ~ ul {
+                display: flex;
+            }
+
+            /* 漢堡動畫（簡單收展，不做旋轉） */
+            #nav-toggle-checkbox:checked + label span:nth-child(2) {
+                opacity: 0;
+            }
+
+            #nav-toggle-checkbox:checked + label span:nth-child(1) {
+                transform: translateY(6px);
+            }
+
+            #nav-toggle-checkbox:checked + label span:nth-child(3) {
+                transform: translateY(-6px);
             }
         }
     </style>
@@ -252,14 +320,27 @@
     </header>
 
     <nav>
-        <ul>
-            <li><a href="#intro">介紹</a></li>
-            <li><a href="#features">功能</a></li>
-            <li><a href="#installation">安裝</a></li>
-            <li><a href="#commands">指令</a></li>
-            <li><a href="#faq">常見問題</a></li>
-            <li><a href="#contact">聯絡</a></li>
-        </ul>
+        <div class="nav-inner">
+            <div class="nav-title">AntiNuke360</div>
+
+            <!-- 手機用漢堡按鈕 -->
+            <input type="checkbox" id="nav-toggle-checkbox" class="nav-toggle">
+            <label for="nav-toggle-checkbox" class="nav-toggle-label">
+                <span></span>
+                <span></span>
+                <span></span>
+            </label>
+
+            <!-- 選單項目 -->
+            <ul>
+                <li><a href="#intro">介紹</a></li>
+                <li><a href="#features">功能</a></li>
+                <li><a href="#installation">安裝</a></li>
+                <li><a href="#commands">指令</a></li>
+                <li><a href="#faq">常見問題</a></li>
+                <li><a href="#contact">聯絡</a></li>
+            </ul>
+        </div>
     </nav>
 
     <section id="intro">
@@ -377,7 +458,9 @@
 
     <section id="commands">
         <div class="glass-panel">
-            <h2>管理員指令</h2>
+            <h2>指令</h2>
+
+            <h3>管理員指令</h3>
 
             <h3>/status</h3>
             <p>查看 AntiNuke360 的當前運行狀態、防護參數與黑名單統計。</p>
@@ -394,7 +477,7 @@
             <h3>/server-whitelist</h3>
             <p>查看本伺服器目前的白名單成員列表。需要管理員權限。</p>
 
-            <h2 style="margin-top: 32px;">開發者指令</h2>
+            <h3 style="margin-top: 24px;">開發者指令</h3>
             <p style="font-size: 14px; color: #d0d0d0;">以下指令僅限開發者使用。</p>
 
             <h3>/add-black [ID] [原因]</h3>
