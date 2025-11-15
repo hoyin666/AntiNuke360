@@ -21,12 +21,12 @@
             background: url("index_bg.jpg") center center / cover fixed no-repeat;
         }
 
-        /* 淺一些的遮罩，讓背景圖更突出 */
+        /* 背景遮罩變淡，圖片更突出 */
         body::before {
             content: "";
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.25);
+            background: rgba(0, 0, 0, 0.30);
             z-index: -1;
         }
 
@@ -45,7 +45,7 @@
             opacity: 0.9;
         }
 
-        /* 導覽列基礎樣式 */
+        /* 導覽列與摺疊選單 */
         nav {
             background: rgba(10, 10, 10, 0.65);
             backdrop-filter: blur(12px);
@@ -59,28 +59,31 @@
         .nav-inner {
             max-width: 1000px;
             margin: 0 auto;
+            padding: 0 12px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 6px 12px;
         }
 
-        .nav-title {
+        .nav-brand {
             font-size: 16px;
             font-weight: 600;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
         }
 
-        nav ul {
+        .nav-links {
             list-style: none;
             display: flex;
-            justify-content: flex-end;
             flex-wrap: wrap;
         }
 
-        nav a {
+        .nav-links li {
+            margin: 0;
+        }
+
+        .nav-links a {
             display: block;
-            padding: 10px 14px;
+            padding: 12px 14px;
             color: #f5f5f5;
             text-decoration: none;
             font-size: 14px;
@@ -89,33 +92,72 @@
             transition: color 0.2s, background 0.2s;
         }
 
-        nav a:hover {
+        .nav-links a:hover {
             background: rgba(255, 255, 255, 0.08);
             color: #ffffff;
         }
 
-        /* 漢堡選單控制 */
+        /* 漢堡按鈕 */
         .nav-toggle {
             display: none;
-        }
-
-        .nav-toggle-label {
-            display: none;
+            width: 32px;
+            height: 32px;
             cursor: pointer;
-            padding: 8px;
+            position: relative;
         }
 
-        .nav-toggle-label span {
-            display: block;
-            width: 22px;
+        .nav-toggle span {
+            position: absolute;
+            left: 4px;
+            right: 4px;
             height: 2px;
-            margin: 4px 0;
-            background: #f5f5f5;
-            transition: transform 0.2s, opacity 0.2s;
+            background: #ffffff;
+            border-radius: 999px;
+            transition: transform 0.25s ease, top 0.25s ease, opacity 0.2s ease;
+        }
+
+        .nav-toggle span:nth-child(1) {
+            top: 9px;
+        }
+
+        .nav-toggle span:nth-child(2) {
+            top: 15px;
+        }
+
+        .nav-toggle span:nth-child(3) {
+            top: 21px;
+        }
+
+        .nav-toggle.open span:nth-child(1) {
+            top: 15px;
+            transform: rotate(45deg);
+        }
+
+        .nav-toggle.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .nav-toggle.open span:nth-child(3) {
+            top: 15px;
+            transform: rotate(-45deg);
+        }
+
+        /* 摺疊動畫容器 */
+        .nav-collapse {
+            overflow: hidden;
+            transition: max-height 0.25s ease;
+        }
+
+        .nav-collapse.closed {
+            max-height: 0;
+        }
+
+        .nav-collapse.open {
+            max-height: 260px; /* 足夠容納所有項目 */
         }
 
         section {
-            max-width: 960px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 40px 20px;
         }
@@ -142,14 +184,15 @@
             margin-bottom: 6px;
         }
 
+        /* 毛玻璃卡片更透明一點，讓背景更透出 */
         .glass-panel {
-            background: rgba(15, 15, 15, 0.55);
+            background: rgba(20, 20, 20, 0.55);
             border-radius: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.35);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
-            padding: 26px 22px 28px 22px;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+            padding: 28px 22px 30px 22px;
         }
 
         .features-grid {
@@ -160,7 +203,7 @@
         }
 
         .feature-card {
-            background: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             padding: 14px 14px 16px 14px;
             border: 1px solid rgba(255, 255, 255, 0.18);
@@ -244,11 +287,11 @@
         }
 
         .stat-box {
-            background: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.08);
             border-radius: 12px;
             padding: 14px;
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.18);
         }
 
         .stat-number {
@@ -258,10 +301,11 @@
 
         .stat-label {
             font-size: 12px;
-            opacity: 0.9;
+            opacity: 0.85;
             margin-top: 4px;
         }
 
+        /* 小螢幕調整 */
         @media (max-width: 768px) {
             header h1 {
                 font-size: 32px;
@@ -271,44 +315,32 @@
                 font-size: 22px;
             }
 
-            /* 手機上：顯示漢堡按鈕、隱藏原本橫向選單 */
+            .nav-links {
+                flex-direction: column;
+            }
+
+            .nav-links a {
+                padding-left: 8px;
+            }
+
+            .nav-toggle {
+                display: block;
+            }
+
+            /* 手機上預設為摺疊狀態 */
+            .nav-collapse.closed {
+                max-height: 0;
+            }
+        }
+
+        /* 桌機上讓 nav 一直展開且無動畫限制 */
+        @media (min-width: 769px) {
             .nav-toggle {
                 display: none;
             }
 
-            .nav-toggle-label {
-                display: block;
-            }
-
-            nav ul {
-                position: static;
-                width: 100%;
-                flex-direction: column;
-                display: none;
-                margin-top: 6px;
-            }
-
-            nav a {
-                text-align: center;
-                border-top: 1px solid rgba(255, 255, 255, 0.08);
-            }
-
-            /* 勾選時顯示選單 */
-            #nav-toggle-checkbox:checked ~ ul {
-                display: flex;
-            }
-
-            /* 漢堡動畫（簡單收展，不做旋轉） */
-            #nav-toggle-checkbox:checked + label span:nth-child(2) {
-                opacity: 0;
-            }
-
-            #nav-toggle-checkbox:checked + label span:nth-child(1) {
-                transform: translateY(6px);
-            }
-
-            #nav-toggle-checkbox:checked + label span:nth-child(3) {
-                transform: translateY(-6px);
+            .nav-collapse {
+                max-height: none !important;
             }
         }
     </style>
@@ -321,31 +353,30 @@
 
     <nav>
         <div class="nav-inner">
-            <div class="nav-title">AntiNuke360</div>
+            <div class="nav-brand">AntiNuke360</div>
 
-            <!-- 手機用漢堡按鈕 -->
-            <input type="checkbox" id="nav-toggle-checkbox" class="nav-toggle">
-            <label for="nav-toggle-checkbox" class="nav-toggle-label">
+            <div class="nav-toggle" id="navToggle">
                 <span></span>
                 <span></span>
                 <span></span>
-            </label>
+            </div>
 
-            <!-- 選單項目 -->
-            <ul>
-                <li><a href="#intro">介紹</a></li>
-                <li><a href="#features">功能</a></li>
-                <li><a href="#installation">安裝</a></li>
-                <li><a href="#commands">指令</a></li>
-                <li><a href="#faq">常見問題</a></li>
-                <li><a href="#contact">聯絡</a></li>
-            </ul>
+            <div class="nav-collapse closed" id="navCollapse">
+                <ul class="nav-links">
+                    <li><a href="#intro">介紹</a></li>
+                    <li><a href="#features">功能</a></li>
+                    <li><a href="#installation">安裝</a></li>
+                    <li><a href="#commands">指令</a></li>
+                    <li><a href="#faq">常見問題</a></li>
+                    <li><a href="#contact">聯絡</a></li>
+                </ul>
+            </div>
         </div>
     </nav>
 
     <section id="intro">
         <div class="glass-panel">
-            <h2>關於 AntiNuke360</h2>
+            <h2>介紹</h2>
             <p>AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對核打擊 (Nuke) 攻擊進行防禦。我不像安全衛士360那麼流氓，但我至少能防止99.99%的核打擊。</p>
             <p style="margin-top: 12px;">完全開源、社群驅動、100%透明。</p>
 
@@ -372,16 +403,16 @@
 
     <section id="features">
         <div class="glass-panel">
-            <h2>核心功能</h2>
+            <h2>功能</h2>
 
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>自動反 Nuke 防護</h3>
-                    <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊，防止伺服器被一鍵炸毁。</p>
+                    <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊，防止伺服器被一鍵炸毀。</p>
                 </div>
                 <div class="feature-card">
                     <h3>全域黑名單系統</h3>
-                    <p>維護全域黑名單，記錄已知惡意機器人與攻擊者，新成員加入時會即時比對並強制移除。</p>
+                    <p>維護全域黑名單，記錄已知惡意機器人與攻擊者，新成員加入時即時比對並強制移除。</p>
                 </div>
                 <div class="feature-card">
                     <h3>本地伺服器白名單</h3>
@@ -389,7 +420,7 @@
                 </div>
                 <div class="feature-card">
                     <h3>全域白名單系統</h3>
-                    <p>由開發者維護的全域白名單，允許特定機器人在所有伺服器中豁免防護。</p>
+                    <p>由開發者維護的全域白名單，允許指定機器人在所有伺服器中豁免防護。</p>
                 </div>
                 <div class="feature-card">
                     <h3>稽核日誌監控</h3>
@@ -397,7 +428,7 @@
                 </div>
                 <div class="feature-card">
                     <h3>權限錯誤監控</h3>
-                    <p>自動偵測權限不足的情況，當問題累積到一定次數會通知伺服器擁有者，必要時自動離開伺服器。</p>
+                    <p>自動偵測權限不足情況，當問題累積到一定次數會通知伺服器擁有者，必要時自動離開伺服器。</p>
                 </div>
                 <div class="feature-card">
                     <h3>成員加入掃描</h3>
@@ -413,7 +444,7 @@
 
     <section id="installation">
         <div class="glass-panel">
-            <h2>安裝和設置</h2>
+            <h2>安裝</h2>
 
             <h3>先決條件</h3>
             <ul>
@@ -451,7 +482,7 @@
 
             <div class="button-group">
                 <a href="https://github.com/hoyin666/AntiNuke360" class="button">GitHub 倉庫</a>
-                <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">機器人列表頁面</a>
+                <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">機器人頁面</a>
             </div>
         </div>
     </section>
@@ -459,8 +490,6 @@
     <section id="commands">
         <div class="glass-panel">
             <h2>指令</h2>
-
-            <h3>管理員指令</h3>
 
             <h3>/status</h3>
             <p>查看 AntiNuke360 的當前運行狀態、防護參數與黑名單統計。</p>
@@ -526,7 +555,7 @@
 
     <section id="contact">
         <div class="glass-panel">
-            <h2>聯絡與開源資訊</h2>
+            <h2>聯絡</h2>
 
             <p>如有錯誤回報、功能建議或安全問題，建議透過 GitHub Issue 回報。</p>
 
@@ -548,5 +577,44 @@
     <footer>
         AntiNuke360 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
+
+    <script>
+        // 漢堡選單開關動畫
+        const navToggle = document.getElementById("navToggle");
+        const navCollapse = document.getElementById("navCollapse");
+        const navLinks = document.querySelectorAll(".nav-links a");
+
+        function toggleNav() {
+            navToggle.classList.toggle("open");
+            navCollapse.classList.toggle("open");
+            navCollapse.classList.toggle("closed");
+        }
+
+        navToggle.addEventListener("click", toggleNav);
+
+        // 點選選單後自動收合（在手機上）
+        navLinks.forEach(function (link) {
+            link.addEventListener("click", function () {
+                if (window.innerWidth <= 768) {
+                    toggleNav();
+                }
+            });
+        });
+
+        // 平滑捲動
+        document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+            anchor.addEventListener("click", function (e) {
+                const targetId = this.getAttribute("href").substring(1);
+                const targetEl = document.getElementById(targetId);
+                if (targetEl) {
+                    e.preventDefault();
+                    window.scrollTo({
+                        top: targetEl.offsetTop - 70,
+                        behavior: "smooth"
+                    });
+                }
+            });
+        });
+    </script>
 </body>
-</html>
+                        </html>
