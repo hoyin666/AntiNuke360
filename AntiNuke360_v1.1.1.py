@@ -18,7 +18,7 @@ SERVER_WHITELIST_FILE = "server_whitelist.json"
 GUILDS_FILE = "guilds_data.json"
 SNAPSHOT_DIR = Path("snapshots")
 SNAPSHOT_TTL_SECONDS = 72 * 3600  # 72 hours
-VERSION = "v1.1"
+VERSION = "v1.1.1"
 
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
@@ -66,7 +66,7 @@ STATUS_MESSAGES = [
     "中國的會爆炸，AntiNuke360的會防炸",
     "你好 我吃一點ww",
     "english or spanish",
-    "sorry,I am gay"
+    "sorry, I am gay"
     ]
 
 def load_blacklist():
@@ -74,7 +74,7 @@ def load_blacklist():
         try:
             with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return {}
     return {}
 
@@ -88,7 +88,7 @@ def load_whitelist():
         try:
             with open(WHITELIST_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return {}
     return {}
 
@@ -105,7 +105,7 @@ def load_server_whitelist():
                 for guild_id, bot_list in data.items():
                     server_whitelisted_bots[int(guild_id)] = set(bot_list)
                 return data
-        except:
+        except Exception:
             return {}
     return {}
 
@@ -122,7 +122,7 @@ def load_guilds_data():
         try:
             with open(GUILDS_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except Exception:
             return {}
     return {}
 
@@ -188,7 +188,6 @@ async def on_ready():
 
 @tasks.loop(seconds=10)
 async def change_status_loop():
-    """每10秒切換一次自訂狀態文字"""
     try:
         if len(STATUS_MESSAGES) == 0:
             return
@@ -241,7 +240,6 @@ def snapshot_time_remaining(snapshot: dict) -> int:
     return max(0, int(expires_at - time.time()))
 
 async def create_snapshot(guild: discord.Guild):
-    """建立或覆寫伺服器快照 (每個伺服器只保留一個)"""
     try:
         print(f"[SNAPSHOT] 建立快照: {guild.name} ({guild.id})")
         data = {"timestamp": time.time(), "roles": [], "categories": [], "channels": []}
@@ -272,7 +270,6 @@ async def create_snapshot(guild: discord.Guild):
                     entry["member_id"] = target.id
                 else:
                     continue
-                # store allow and deny as ints
                 try:
                     allow = int(ow.pair()[0].value) if hasattr(ow, "pair") else int(ow.read_permissions().value)
                 except Exception:
@@ -344,12 +341,10 @@ async def create_snapshot(guild: discord.Guild):
         return False
 
 async def perform_restore(guild: discord.Guild, ctx_sender=None):
-    """從快照還原伺服器結構（盡力還原）"""
     snapshot = load_snapshot_file(guild.id)
     if not snapshot or not snapshot_is_valid(snapshot):
         return False, "沒有有效的快照可用。"
     
-    # Permission checks
     me = guild.me
     if not me:
         return False, "無法取得 Bot 的成員資料。"
@@ -357,8 +352,35 @@ async def perform_restore(guild: discord.Guild, ctx_sender=None):
         return False, "權限不足：需要 Manage Roles 與 Manage Channels 權限來還原快照。"
     
     try:
-        role_map = {}  # old role name -> new role object
-        # Create roles in increasing position to mimic order
+        print(f"[RESTORE] 開始清除現有頻道與身分組（若 Bot 有權限）: {guild.name}")
+        for ch in list(guild.channels):
+            try:
+                if ch.permissions_for(me).manage_channels:
+                    await ch.delete(reason="AntiNuke360: 還原前清除現有頻道")
+                    await asyncio.sleep(0.15)
+                else:
+                    print(f"[RESTORE] 無法刪除頻道 (權限不足): {ch.name}")
+            except discord.Forbidden:
+                print(f"[RESTORE] 刪除頻道權限不足: {ch.name}")
+            except Exception as e:
+                print(f"[RESTORE] 刪除頻道失敗 {ch.name}: {e}")
+        
+        bot_top_pos = me.top_role.position if me.top_role else -1
+        for role in sorted(guild.roles, key=lambda r: r.position, reverse=True):
+            if role == guild.default_role:
+                continue
+            if role.position >= bot_top_pos:
+                print(f"[RESTORE] 跳過刪除身分組 (位置高於或等於 Bot): {role.name}")
+                continue
+            try:
+                await role.delete(reason="AntiNuke360: 還原前清除身分組")
+                await asyncio.sleep(0.15)
+            except discord.Forbidden:
+                print(f"[RESTORE] 刪除身分組權限不足: {role.name}")
+            except Exception as e:
+                print(f"[RESTORE] 刪除身分組失敗 {role.name}: {e}")
+        
+        role_map = {}
         roles_data = sorted(snapshot.get("roles", []), key=lambda r: r.get("position", 0))
         created_roles = []
         for rdata in roles_data:
@@ -367,35 +389,44 @@ async def perform_restore(guild: discord.Guild, ctx_sender=None):
             color_val = rdata.get("color", 0)
             hoist = rdata.get("hoist", False)
             mentionable = rdata.get("mentionable", False)
-            # Skip creating a role if a role with same name already exists
             existing = discord.utils.get(guild.roles, name=name)
             if existing:
                 role_map[name] = existing
                 continue
-            new_role = await guild.create_role(
-                name=name,
-                permissions=perms,
-                colour=discord.Colour(color_val) if color_val else discord.Colour.default(),
-                hoist=hoist,
-                mentionable=mentionable,
-                reason="AntiNuke360: 還原快照"
-            )
-            role_map[name] = new_role
-            created_roles.append((new_role, rdata.get("position", 0)))
-            await asyncio.sleep(0.2)  # 避免速率限制
+            try:
+                new_role = await guild.create_role(
+                    name=name,
+                    permissions=perms,
+                    colour=discord.Colour(color_val) if color_val else discord.Colour.default(),
+                    hoist=hoist,
+                    mentionable=mentionable,
+                    reason="AntiNuke360: 還原快照"
+                )
+                role_map[name] = new_role
+                created_roles.append((new_role, rdata.get("position", 0)))
+                await asyncio.sleep(0.15)
+            except discord.Forbidden:
+                print(f"[RESTORE] 權限不足，無法建立身分組: {name}")
+            except Exception as e:
+                print(f"[RESTORE] 建立身分組失敗 {name}: {e}")
         
-        # Attempt to set role positions
         try:
-            positions = {}
+            pos_map = {}
             for name, role in role_map.items():
                 rp = next((r.get("position", 0) for r in roles_data if r.get("name") == name), role.position)
-                positions[role] = rp
-            if positions:
-                await guild.edit_role_positions({r: p for r, p in positions.items()})
+                pos_map[role] = rp
+            if pos_map:
+                try:
+                    await guild.edit_role_positions({r: p for r, p in pos_map.items()})
+                except AttributeError:
+                    print("[RESTORE] guild.edit_role_positions 不可用，跳過批次設定順位")
+                except discord.Forbidden as e:
+                    print(f"[RESTORE] 調整角色順位失敗 (權限): {e}")
+                except Exception as e:
+                    print(f"[RESTORE] 調整角色順位失敗: {e}")
         except Exception as e:
-            print(f"[RESTORE] 調整角色順位失敗: {e}")
+            print(f"[RESTORE] 準備角色順位資料時發生錯誤: {e}")
         
-        # Create categories
         category_map = {}
         for cdata in sorted(snapshot.get("categories", []), key=lambda c: c.get("position", 0)):
             name = cdata.get("name", "category")
@@ -417,11 +448,15 @@ async def perform_restore(guild: discord.Guild, ctx_sender=None):
                         allow = discord.Permissions(ow.get("allow", 0))
                         deny = discord.Permissions(ow.get("deny", 0))
                         overwrites[member] = discord.PermissionOverwrite(allow=allow, deny=deny)
-            cat = await guild.create_category(name, overwrites=overwrites, reason="AntiNuke360: 還原快照")
-            category_map[name] = cat
-            await asyncio.sleep(0.2)
+            try:
+                cat = await guild.create_category(name, overwrites=overwrites, reason="AntiNuke360: 還原快照")
+                category_map[name] = cat
+                await asyncio.sleep(0.12)
+            except discord.Forbidden:
+                print(f"[RESTORE] 權限不足，無法建立分類: {name}")
+            except Exception as e:
+                print(f"[RESTORE] 建立分類失敗 {name}: {e}")
         
-        # Create channels
         created_channels = []
         for chdata in sorted(snapshot.get("channels", []), key=lambda c: c.get("position", 0)):
             name = chdata.get("name", "channel")
@@ -446,64 +481,58 @@ async def perform_restore(guild: discord.Guild, ctx_sender=None):
                 topic = chdata.get("topic")
                 nsfw = chdata.get("nsfw", False)
                 slowmode = chdata.get("slowmode", 0)
-                existing = discord.utils.get(guild.text_channels, name=name)
-                if existing:
-                    try:
-                        await existing.edit(category=parent, topic=topic, nsfw=nsfw, slowmode_delay=slowmode, overwrites=overwrites)
-                    except:
-                        pass
-                    created_channels.append(existing)
-                else:
+                try:
                     ch = await guild.create_text_channel(name, category=parent, topic=topic, nsfw=nsfw, overwrites=overwrites, reason="AntiNuke360: 還原快照")
                     try:
                         await ch.edit(slowmode_delay=slowmode)
-                    except:
+                    except Exception:
                         pass
-                    created_channels.append(ch)
+                    created_channels.append((ch, chdata.get("position", 0)))
+                    await asyncio.sleep(0.12)
+                except discord.Forbidden:
+                    print(f"[RESTORE] 權限不足，無法建立文字頻道: {name}")
+                except Exception as e:
+                    print(f"[RESTORE] 建立文字頻道失敗 {name}: {e}")
             elif ch_type == "voice":
                 bitrate = chdata.get("bitrate", None)
                 user_limit = chdata.get("user_limit", None)
-                existing = discord.utils.get(guild.voice_channels, name=name)
-                if existing:
-                    try:
-                        await existing.edit(category=parent, bitrate=bitrate or existing.bitrate, user_limit=user_limit or existing.user_limit, overwrites=overwrites)
-                    except:
-                        pass
-                    created_channels.append(existing)
-                else:
+                try:
                     ch = await guild.create_voice_channel(name, category=parent, bitrate=bitrate, user_limit=user_limit, overwrites=overwrites, reason="AntiNuke360: 還原快照")
-                    created_channels.append(ch)
-            await asyncio.sleep(0.2)
+                    created_channels.append((ch, chdata.get("position", 0)))
+                    await asyncio.sleep(0.12)
+                except discord.Forbidden:
+                    print(f"[RESTORE] 權限不足，無法建立語音頻道: {name}")
+                except Exception as e:
+                    print(f"[RESTORE] 建立語音頻道失敗 {name}: {e}")
+            else:
+                continue
         
-        # Try to set channel positions roughly (best effort)
         try:
-            pos_map = {}
-            for cdata in snapshot.get("channels", []):
-                name = cdata.get("name")
-                pos = cdata.get("position", 0)
-                ch = discord.utils.get(guild.channels, name=name)
-                if ch:
-                    pos_map[ch] = pos
-            if pos_map:
-                await guild.edit_channel_positions({ch: pos for ch, pos in pos_map.items()})
+            for ch, pos in created_channels:
+                try:
+                    await ch.edit(position=pos)
+                    await asyncio.sleep(0.08)
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[RESTORE] 調整頻道順位失敗: {e}")
         
-        return True, f"已嘗試還原伺服器結構。建立角色: {len(role_map)}，建立/更新頻道: {len(created_channels)}"
+        return True, f"已嘗試還原伺服器結構。建立身分組: {len(role_map)}，建立/更新頻道: {len(created_channels)}"
+    except discord.Forbidden as e:
+        print(f"[RESTORE ERROR] 還原失敗: {e}")
+        return False, f"還原失敗: 權限不足 ({e})"
     except Exception as e:
         print(f"[RESTORE ERROR] 還原失敗: {e}")
         return False, f"還原過程中發生錯誤: {e}"
 
 async def prompt_restore_on_suspect(guild: discord.Guild):
-    """在偵測到疑似炸服時詢問伺服器擁有者是否要還原（每 10 分鐘最多詢問一次）"""
     now = time.time()
-    if now - restore_prompted[guild.id] < 600:  # 10 minutes cooldown for prompts
+    if now - restore_prompted[guild.id] < 600:
         return
     restore_prompted[guild.id] = now
     
     snapshot = load_snapshot_file(guild.id)
     if not snapshot or not snapshot_is_valid(snapshot):
-        # 沒有有效快照，略過詢問
         return
     
     remaining = snapshot_time_remaining(snapshot)
@@ -511,12 +540,11 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
     message_text = (
         f"AntiNuke360 偵測到伺服器可能遭受大規模破壞攻擊。\n"
         f"我們偵測到一個快照可用，剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘。\n"
-        "回覆 `Y` 以自動還原伺服器結構（角色、分類、頻道的盡力還原），或回覆 `N` 以略過。\n"
+        "回覆 `Y` 以自動還原伺服器結構（會先嘗試刪除可刪除的身分組與頻道），或回覆 `N` 以略過。\n"
         "您也可以稍後使用斜線指令 `/restore-snapshot` 手動還原。"
     )
     sent_location = None
     try:
-        # 優先 DM 伺服器擁有者
         if owner:
             dm = await owner.create_dm()
             try:
@@ -528,17 +556,14 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
         sent_location = None
     
     if not sent_location:
-        # 嘗試伺服器的 welcome channel 或 system channel 或第一個可寫頻道
         data = load_guilds_data()
         welcome_ch_id = data.get(str(guild.id), {}).get("welcome_channel_id")
         target_ch = None
         if welcome_ch_id:
             target_ch = guild.get_channel(welcome_ch_id)
         if not target_ch:
-            # fallback to system channel
             target_ch = guild.system_channel
         if not target_ch:
-            # try first text channel bot can send messages to
             for ch in guild.text_channels:
                 if ch.permissions_for(guild.me).send_messages:
                     target_ch = ch
@@ -554,20 +579,18 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
         print(f"[PROMPT] 無法通知伺服器擁有者或任何頻道來詢問還原: {guild.name}")
         return
     
-    # wait for response from owner (DM) or owner reply in the channel
     def check(m: discord.Message):
         try:
             if sent_location[0] == "dm":
                 return m.author.id == owner.id and isinstance(m.channel, discord.DMChannel) and m.content.strip().upper() in ("Y", "N")
             else:
                 return m.author.id == owner.id and m.channel.id == sent_location[1] and m.content.strip().upper() in ("Y", "N")
-        except:
+        except Exception:
             return False
     
     try:
         resp = await bot.wait_for("message", timeout=300.0, check=check)
         if resp.content.strip().upper() == "Y":
-            # perform restore
             ok, msg = await perform_restore(guild)
             notify = f"還原結果: {'成功' if ok else '失敗'}。{msg}"
             try:
@@ -577,7 +600,7 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
                     ch = guild.get_channel(sent_location[1])
                     if ch:
                         await ch.send(notify)
-            except:
+            except Exception:
                 pass
         else:
             notify = (
@@ -592,43 +615,35 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
                     ch = guild.get_channel(sent_location[1])
                     if ch:
                         await ch.send(notify)
-            except:
+            except Exception:
                 pass
     except asyncio.TimeoutError:
-        # 超時視為不還原，並通知如何手動還原
         notify = (
             "未在 5 分鐘內收到回覆，已取消自動還原操作。\n"
             "如需還原，請使用斜線指令 `/restore-snapshot`。\n"
             f"目前快照剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘。"
         )
         try:
-            if sent_location[0] == "dm":
+            if sent_location and sent_location[0] == "dm" and owner:
                 dm = await owner.create_dm()
                 await dm.send(notify)
-            else:
+            elif sent_location:
                 ch = guild.get_channel(sent_location[1])
                 if ch:
                     await ch.send(notify)
-        except:
+        except Exception:
             pass
 
 async def scan_and_ban_blacklist(guild):
-    """掃描伺服器中的黑名單成員並停權"""
     print(f"[SCAN] 開始掃描伺服器 {guild.name} 中的黑名單成員")
-    
     banned_count = 0
     scan_count = 0
-    
     try:
-        # 掃描伺服器中的所有成員
         async for member in guild.fetch_members(limit=None):
             scan_count += 1
             user_id_str = str(member.id)
-            
-            # 檢查是否在黑名單中
             if user_id_str in bot_blacklist:
                 try:
-                    # 檢查是否已被停權
                     if member.id not in banned_in_session[guild.id]:
                         blacklist_info = bot_blacklist[user_id_str]
                         ban_reason = blacklist_info.get('reason', '黑名單機器人')
@@ -640,39 +655,32 @@ async def scan_and_ban_blacklist(guild):
                     print(f"[SCAN ERROR] 無法停權 {member}: {e}")
     except Exception as e:
         print(f"[SCAN ERROR] 掃描伺服器失敗: {e}")
-    
     print(f"[SCAN] 掃描完成 - 掃描 {scan_count} 人，停權 {banned_count} 人")
     return scan_count, banned_count
 
 async def check_permission_errors(guild):
-    """檢查權限錯誤是否超過臨界值"""
     gid = guild.id
     now = time.time()
-    
     while permission_errors[gid] and now - permission_errors[gid][0] > 60:
         permission_errors[gid].popleft()
-    
     if len(permission_errors[gid]) >= 10:
         print(f"[PERMISSION] 伺服器 {guild.name} 1 分鐘內出現 10 次權限錯誤，準備離開")
-        
         try:
             embed = discord.Embed(title="身份組權限設錯警告", color=discord.Color.red())
             embed.description = f"AntiNuke360 在伺服器 '{guild.name}' 中 1 分鐘內遇到 10 次權限不足錯誤 (403 Forbidden)。\n\n請確保 Bot 的身份組具有以下權限：\n- 封禁成員 (Ban Members)\n- 踢出成員 (Kick Members)\n- 管理頻道 (Manage Channels)\n- 管理角色 (Manage Roles)\n\n將身份組移至頻道權限或伺服器權限中的其他管理員角色之上。\n\n修復後，本 Bot 將自動重新加入伺服器。"
-            embed.set_footer(text="AntiNuke360 v1.1")
-            
-            task = guild.owner.send(embed=embed)
-            await asyncio.shield(task)
-            print(f"[PERMISSION] 已向伺服器所有者發送通知")
+            embed.set_footer(text="AntiNuke360 v1.1.1")
+            try:
+                await guild.owner.send(embed=embed)
+                print(f"[PERMISSION] 已向伺服器所有者發送通知")
+            except Exception as e:
+                print(f"[PERMISSION ERROR] 無法發送 DM: {e}")
         except Exception as e:
-            print(f"[PERMISSION ERROR] 無法發送 DM: {e}")
-        
+            print(f"[PERMISSION ERROR] 構建嵌入訊息失敗: {e}")
         try:
-            task = guild.leave()
-            await asyncio.shield(task)
+            await guild.leave()
             print(f"[PERMISSION] 已自動離開伺服器: {guild.name}")
         except Exception as e:
             print(f"[PERMISSION ERROR] 無法離開伺服器: {e}")
-        
         permission_errors[gid].clear()
 
 async def track_action(guild, user, action_type):
@@ -684,7 +692,6 @@ async def track_action(guild, user, action_type):
         return False
     if user.id in server_whitelisted_bots[guild.id]:
         return False
-    
     now = time.time()
     actions = user_actions[guild.id][user.id][action_type]
     actions.append(now)
@@ -701,16 +708,16 @@ async def take_action(guild, user, reason):
     global bot_blacklist, notified_bans
     gid = guild.id
     uid = user.id
-    
+
     if uid in banned_in_session[gid]:
         return
-    
+
     print(f"[ACTION] 開始處理 {user} (ID: {uid})")
     try:
         await guild.ban(user, reason=f"AntiNuke360: {reason}")
         banned_in_session[gid].add(uid)
         print(f"[BAN] 成功封鎖 {user}")
-        
+
         if user.bot:
             user_id_str = str(uid)
             if user_id_str not in bot_blacklist:
@@ -725,10 +732,10 @@ async def take_action(guild, user, reason):
                     bot_blacklist[user_id_str]["guilds_detected"].append(gid)
             save_blacklist(bot_blacklist)
             print(f"[BLACKLIST] 已將 {user} 加入全域黑名單")
-            
+
             # 在所有伺服器中掃描並停權
             await scan_blacklist_all_guilds()
-        
+
         if uid not in notified_bans[gid] and guild.owner:
             notified_bans[gid].add(uid)
             embed = discord.Embed(title="[AntiNuke360 警報]", color=discord.Color.red())
@@ -738,7 +745,7 @@ async def take_action(guild, user, reason):
             embed.set_footer(text="AntiNuke360")
             try:
                 await guild.owner.send(embed=embed)
-            except:
+            except Exception:
                 pass
     except discord.Forbidden as e:
         print(f"[BAN ERROR] 權限不足: {e}")
@@ -748,11 +755,9 @@ async def take_action(guild, user, reason):
         print(f"[BAN ERROR] 封鎖失敗: {e}")
 
 async def scan_blacklist_all_guilds():
-    """在所有伺服器中掃描並停權黑名單成員"""
     print("[SCAN] 開始在所有伺服器中掃描黑名單成員")
     total_scanned = 0
     total_banned = 0
-    
     for guild in bot.guilds:
         try:
             scan_count, banned_count = await scan_and_ban_blacklist(guild)
@@ -760,11 +765,9 @@ async def scan_blacklist_all_guilds():
             total_banned += banned_count
         except Exception as e:
             print(f"[SCAN ERROR] 無法掃描伺服器 {guild.name}: {e}")
-    
     print(f"[SCAN] 全部伺服器掃描完成 - 共掃描 {total_scanned} 人，停權 {total_banned} 人")
 
 async def send_welcome_message(guild):
-    """向新伺服器發送歡迎訊息"""
     try:
         if not guild.me.guild_permissions.manage_channels:
             print(f"[WELCOME] 無法創建頻道: 權限不足")
@@ -858,7 +861,7 @@ async def send_welcome_message(guild):
             inline=False
         )
         
-        embed.set_footer(text="AntiNuke360 v1.1 | 伺服器防護專家")
+        embed.set_footer(text="AntiNuke360 v1.1.1 | 伺服器防護專家")
         
         await channel.send(embed=embed)
         print(f"[WELCOME] 已在伺服器 {guild.name} 創建歡迎頻道")
@@ -868,14 +871,12 @@ async def send_welcome_message(guild):
 
 @bot.event
 async def on_guild_join(guild):
-    """當機器人加入新伺服器時"""
     print(f"[JOIN] 已加入新伺服器: {guild.name} (ID: {guild.id})")
     add_to_guilds_data(guild.id)
     await send_welcome_message(guild)
 
 @bot.event
 async def on_guild_remove(guild):
-    """當機器人從伺服器移除時"""
     print(f"[LEAVE] 已從伺服器移除: {guild.name} (ID: {guild.id})")
     remove_from_guilds_data(guild.id)
     if guild.id in server_whitelisted_bots:
@@ -891,7 +892,6 @@ async def on_member_join(member):
     
     # 如果是機器人，建立或覆寫快照
     if member.bot:
-        # 每個伺服器只保留一個快照，新的覆蓋舊的
         try:
             await create_snapshot(guild)
         except Exception as e:
@@ -914,12 +914,12 @@ async def on_member_join(member):
                 embed.set_footer(text="AntiNuke360")
                 try:
                     await guild.owner.send(embed=embed)
-                except:
+                except Exception:
                     pass
                 
                 try:
                     await member.send(embed=embed)
-                except:
+                except Exception:
                     pass
         except Exception as e:
             print(f"[BAN ERROR] 無法封鎖 {member}: {e}")
@@ -945,11 +945,10 @@ async def on_webhook_update(channel):
                 break
             
             if await track_action(guild, actor, "webhook_create"):
-                # 聲明: 先進行防護動作，再詢問管理員是否還原（若有快照）
                 asyncio.create_task(prompt_restore_on_suspect(guild))
                 await take_action(guild, actor, "短時間內大量建立 Webhook")
             break
-    except:
+    except Exception:
         pass
 
 @bot.event
@@ -992,7 +991,7 @@ async def on_guild_channel_create(channel):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
                 await take_action(guild, actor, "短時間內大量建立頻道")
             break
-    except:
+    except Exception:
         pass
 
 @bot.event
@@ -1014,7 +1013,7 @@ async def on_guild_channel_delete(channel):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
                 await take_action(guild, actor, "短時間內大量刪除頻道")
             break
-    except:
+    except Exception:
         pass
 
 @bot.event
@@ -1038,7 +1037,7 @@ async def on_member_remove(member):
                     asyncio.create_task(prompt_restore_on_suspect(guild))
                     await take_action(guild, actor, "短時間內大量踢出成員")
                 break
-    except:
+    except Exception:
         pass
 
 @bot.event
@@ -1064,7 +1063,7 @@ async def on_member_ban(guild, user):
                     asyncio.create_task(prompt_restore_on_suspect(guild))
                     await take_action(guild, actor, "短時間內大量封鎖成員")
                 break
-    except:
+    except Exception:
         pass
 
 @bot.event
@@ -1086,7 +1085,7 @@ async def on_guild_role_create(role):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
                 await take_action(guild, actor, "短時間內大量建立角色")
             break
-    except:
+    except Exception:
         pass
 
 # Slash commands
@@ -1107,46 +1106,38 @@ async def status(interaction: discord.Interaction):
     embed.set_footer(text=f"AntiNuke360 {VERSION} | 防護參數已固定")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="scan-blacklist", description="掃描並停權伺服器中的黑名單成員 (管理員)")
 @app_commands.checks.has_permissions(administrator=True)
+@bot.tree.command(name="scan-blacklist", description="掃描並停權伺服器中的黑名單成員 (管理員)")
 async def scan_blacklist(interaction: discord.Interaction):
     await interaction.response.defer()
-    
-    print(f"[SCAN] 管理員 {interaction.user} 在伺服器 {interaction.guild.name} 觸發掃描")
-    
     try:
         scan_count, banned_count = await scan_and_ban_blacklist(interaction.guild)
-        
         embed = discord.Embed(title="黑名單掃描完成", color=discord.Color.green())
         embed.description = f"已掃描伺服器中的成員並停權黑名單帳號"
         embed.add_field(name="掃描人數", value=str(scan_count), inline=True)
         embed.add_field(name="停權人數", value=str(banned_count), inline=True)
         embed.add_field(name="伺服器", value=interaction.guild.name, inline=False)
-        embed.set_footer(text="AntiNuke360 v1.1")
-        
+        embed.set_footer(text="AntiNuke360 v1.1.1")
         await interaction.followup.send(embed=embed)
     except Exception as e:
-        print(f"[SCAN ERROR] 掃描失敗: {e}")
         embed = discord.Embed(title="掃描失敗", color=discord.Color.red())
         embed.description = f"掃描伺服器時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.1")
+        embed.set_footer(text="AntiNuke360 v1.1.1")
         await interaction.followup.send(embed=embed)
 
+@app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="add-server-white", description="將機器人加入本伺服器白名單 (管理員)")
 @app_commands.describe(bot_id="機器人 ID")
-@app_commands.checks.has_permissions(administrator=True)
 async def add_server_white(interaction: discord.Interaction, bot_id: str):
     try:
         bot_id_int = int(bot_id)
-    except:
+    except Exception:
         await interaction.response.send_message("無效的機器人 ID", ephemeral=True)
         return
-    
     gid = interaction.guild.id
     if bot_id_int in server_whitelisted_bots[gid]:
         await interaction.response.send_message(f"該機器人已在本伺服器白名單中", ephemeral=True)
         return
-    
     server_whitelisted_bots[gid].add(bot_id_int)
     save_server_whitelist()
     embed = discord.Embed(title="已加入本伺服器白名單", color=discord.Color.green())
@@ -1154,21 +1145,19 @@ async def add_server_white(interaction: discord.Interaction, bot_id: str):
     embed.add_field(name="伺服器", value=interaction.guild.name, inline=True)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="remove-server-white", description="從本伺服器白名單移除機器人 (管理員)")
 @app_commands.describe(bot_id="機器人 ID")
-@app_commands.checks.has_permissions(administrator=True)
 async def remove_server_white(interaction: discord.Interaction, bot_id: str):
     try:
         bot_id_int = int(bot_id)
-    except:
+    except Exception:
         await interaction.response.send_message("無效的機器人 ID", ephemeral=True)
         return
-    
     gid = interaction.guild.id
     if bot_id_int not in server_whitelisted_bots[gid]:
         await interaction.response.send_message(f"該機器人不在本伺服器白名單中", ephemeral=True)
         return
-    
     server_whitelisted_bots[gid].discard(bot_id_int)
     save_server_whitelist()
     embed = discord.Embed(title="已從本伺服器白名單移除", color=discord.Color.red())
@@ -1176,24 +1165,21 @@ async def remove_server_white(interaction: discord.Interaction, bot_id: str):
     embed.add_field(name="伺服器", value=interaction.guild.name, inline=True)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="server-whitelist", description="查看本伺服器白名單 (管理員)")
 @app_commands.checks.has_permissions(administrator=True)
+@bot.tree.command(name="server-whitelist", description="查看本伺服器白名單 (管理員)")
 async def server_whitelist(interaction: discord.Interaction):
     gid = interaction.guild.id
     bots = server_whitelisted_bots[gid]
-    
     if not bots:
         await interaction.response.send_message("本伺服器白名單為空", ephemeral=True)
         return
-    
     lines = [f"{i+1}. `{bot_id}`" for i, bot_id in enumerate(sorted(bots)[:50])]
-    
     embed = discord.Embed(title=f"本伺服器白名單 ({len(bots)})", color=discord.Color.blue())
     embed.description = "\n".join(lines)
     if len(bots) > 50:
         embed.add_field(name="提示", value=f"還有 {len(bots) - 50} 個機器人未顯示", inline=False)
     embed.add_field(name="伺服器", value=interaction.guild.name, inline=True)
-    embed.set_footer(text="AntiNuke360 v1.1")
+    embed.set_footer(text="AntiNuke360 v1.1.1")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="add-black", description="將機器人加入全域黑名單 (開發者)")
@@ -1203,23 +1189,17 @@ async def add_black(interaction: discord.Interaction, bot_id: str, reason: str =
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     if bot_id in bot_blacklist:
         await interaction.response.send_message(f"該機器人已在黑名單中", ephemeral=True)
         return
-    
     bot_blacklist[bot_id] = {"name": bot_id, "reason": reason, "timestamp": time.time(), "guilds_detected": []}
     save_blacklist(bot_blacklist)
-    
     await interaction.response.defer()
-    
     embed = discord.Embed(title="已加入黑名單", color=discord.Color.red())
     embed.description = f"機器人 ID: `{bot_id}` 已加入全域黑名單"
     embed.add_field(name="原因", value=reason if reason else "無", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.1")
+    embed.set_footer(text="AntiNuke360 v1.1.1")
     await interaction.followup.send(embed=embed)
-    
-    # 在所有伺服器中掃描並停權
     await scan_blacklist_all_guilds()
 
 @bot.tree.command(name="remove-black", description="從全域黑名單移除機器人 (開發者)")
@@ -1229,11 +1209,9 @@ async def remove_black(interaction: discord.Interaction, bot_id: str):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     if bot_id not in bot_blacklist:
         await interaction.response.send_message(f"該機器人不在黑名單中", ephemeral=True)
         return
-    
     del bot_blacklist[bot_id]
     save_blacklist(bot_blacklist)
     embed = discord.Embed(title="已從黑名單移除", color=discord.Color.green())
@@ -1247,11 +1225,9 @@ async def add_white(interaction: discord.Interaction, bot_id: str, reason: str =
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     if bot_id in bot_whitelist:
         await interaction.response.send_message(f"該機器人已在白名單中", ephemeral=True)
         return
-    
     bot_whitelist[bot_id] = {"name": bot_id, "reason": reason, "timestamp": time.time()}
     save_whitelist(bot_whitelist)
     embed = discord.Embed(title="已加入白名單", color=discord.Color.green())
@@ -1266,11 +1242,9 @@ async def remove_white(interaction: discord.Interaction, bot_id: str):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     if bot_id not in bot_whitelist:
         await interaction.response.send_message(f"該機器人不在白名單中", ephemeral=True)
         return
-    
     del bot_whitelist[bot_id]
     save_whitelist(bot_whitelist)
     embed = discord.Embed(title="已從白名單移除", color=discord.Color.red())
@@ -1282,20 +1256,17 @@ async def blacklist(interaction: discord.Interaction):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     if not bot_blacklist:
         await interaction.response.send_message("黑名單為空", ephemeral=True)
         return
-    
     lines = []
     for bot_id, info in bot_blacklist.items():
         lines.append(f"ID: `{bot_id}` | 名稱: {info.get('name', '未知')} | 原因: {info.get('reason', '無')}")
-    
     embed = discord.Embed(title=f"全域黑名單 ({len(bot_blacklist)})", color=discord.Color.red())
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.1")
+    embed.set_footer(text="AntiNuke360 v1.1.1")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="whitelist-list", description="查看全域白名單 (開發者)")
@@ -1303,20 +1274,17 @@ async def whitelist_list(interaction: discord.Interaction):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     if not bot_whitelist:
         await interaction.response.send_message("白名單為空", ephemeral=True)
         return
-    
     lines = []
     for bot_id, info in bot_whitelist.items():
         lines.append(f"ID: `{bot_id}` | 名稱: {info.get('name', '未知')} | 原因: {info.get('reason', '無')}")
-    
     embed = discord.Embed(title=f"全域白名單 ({len(bot_whitelist)})", color=discord.Color.green())
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.1")
+    embed.set_footer(text="AntiNuke360 v1.1.1")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="scan-all-guilds", description="在所有伺服器掃描並停權黑名單成員 (開發者)")
@@ -1324,27 +1292,21 @@ async def scan_all_guilds(interaction: discord.Interaction):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    
     await interaction.response.defer()
-    print(f"[SCAN] 開發者 {interaction.user} 觸發全域掃描")
-    
     try:
         await scan_blacklist_all_guilds()
-        
         embed = discord.Embed(title="全域黑名單掃描完成", color=discord.Color.green())
         embed.description = "已在所有伺服器中掃描並停權黑名單成員"
-        embed.set_footer(text="AntiNuke360 v1.1")
-        
+        embed.set_footer(text="AntiNuke360 v1.1.1")
         await interaction.followup.send(embed=embed)
     except Exception as e:
-        print(f"[SCAN ERROR] 全域掃描失敗: {e}")
         embed = discord.Embed(title="全域掃描失敗", color=discord.Color.red())
         embed.description = f"掃描時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.1")
+        embed.set_footer(text="AntiNuke360 v1.1.1")
         await interaction.followup.send(embed=embed)
 
-@bot.tree.command(name="restore-snapshot", description="還原本伺服器的備份快照 (管理員)")
 @app_commands.checks.has_permissions(administrator=True)
+@bot.tree.command(name="restore-snapshot", description="還原本伺服器的備份快照 (管理員)")
 async def restore_snapshot_command(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     guild = interaction.guild
@@ -1353,7 +1315,7 @@ async def restore_snapshot_command(interaction: discord.Interaction):
         await interaction.followup.send("伺服器沒有有效的快照可供還原或已過期。", ephemeral=True)
         return
     remaining = snapshot_time_remaining(snapshot)
-    await interaction.followup.send(f"開始還原快照 (剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘)。這可能需要一段時間...", ephemeral=True)
+    await interaction.followup.send(f"開始還原快照 (剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘)。這可能需要一段時間且會先嘗試刪除可刪除的現有頻道與身分組...", ephemeral=True)
     ok, msg = await perform_restore(guild, ctx_sender=interaction.user)
     if ok:
         await interaction.followup.send(f"還原完成: {msg}", ephemeral=True)
