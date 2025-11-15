@@ -1,9 +1,0 @@
-.env
-private_key.pem
-*.token
-__pycache__/
-*.pyc
-123.py
-1234.py
-app.py
-bot.py
