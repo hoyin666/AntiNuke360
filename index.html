@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 - 永久免費、永久開源的 Discord 伺服器防護機制">
-    <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection">
-    <title>AntiNuke360 - Discord 伺服器防護機制</title>
+    <meta name="description" content="AntiNuke360 v1.1 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
+    <title>AntiNuke360 v1.1 - Discord 伺服器防護機制</title>
     <style>
         * {
             margin: 0;
@@ -44,6 +44,13 @@
             font-size: clamp(32px, 8vw, 52px);
             margin-bottom: 12px;
             letter-spacing: 1px;
+        }
+
+        header .version {
+            font-size: clamp(14px, 3vw, 16px);
+            color: #4f7dfa;
+            font-weight: 600;
+            margin-bottom: 8px;
         }
 
         header p {
@@ -268,6 +275,18 @@
             opacity: 0.9;
         }
 
+        .badge {
+            display: inline-block;
+            background: #4f7dfa;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -426,6 +445,11 @@
                 font-size: 11px;
                 padding: 10px;
             }
+
+            .badge {
+                margin-left: 4px;
+                margin-top: 4px;
+            }
         }
 
         @media (min-width: 769px) {
@@ -456,6 +480,7 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
+        <div class="version">v1.1 - 最新版本</div>
         <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
     </header>
 
@@ -519,6 +544,14 @@
                     <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊。</p>
                 </div>
                 <div class="feature-card">
+                    <h3>伺服器快照系統<span class="badge">新增 v1.1</span></h3>
+                    <p>自動建立伺服器結構快照，遭受攻擊後可完全還原。快照保留 72 小時。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>一鍵還原功能<span class="badge">新增 v1.1</span></h3>
+                    <p>攻擊發生時自動詢問是否還原，或使用指令手動還原伺服器架構。</p>
+                </div>
+                <div class="feature-card">
                     <h3>全域黑名單系統</h3>
                     <p>維護全域黑名單，記錄已知惡意機器人與攻擊者，新成員加入時即時比對並強制移除。</p>
                 </div>
@@ -570,8 +603,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人：
-                    <pre><code>python AntiNuke360_v1.0.py</code></pre>
+                <li>啟動機器人 (v1.1)：
+                    <pre><code>python AntiNuke360_v1.1.py</code></pre>
                 </li>
             </ol>
 
@@ -585,7 +618,7 @@
             </ol>
 
             <div class="button-group">
-                <a href="https://github.com/hoyin666/AntiNuke360" class="button">𝖦𝗂𝗍𝖧𝗎𝖻 倉庫</a>
+                <a href="https://github.com/hoyin666/AntiNuke360" class="button">GitHub 倉庫</a>
                 <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">機器人列表</a>
             </div>
         </div>
@@ -600,6 +633,9 @@
 
             <h3>/scan-blacklist</h3>
             <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。</p>
+
+            <h3>/restore-snapshot <span class="badge">新增 v1.1</span></h3>
+            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。</p>
 
             <h3>/add-server-white [ID]</h3>
             <p>將指定機器人加入本伺服器白名單。需要管理員權限。</p>
@@ -639,17 +675,20 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
+            <h3>v1.1 相比 v1.0 有什麼新功能？</h3>
+            <p>v1.1 新增了伺服器快照系統和一鍵還原功能。當伺服器遭受核打擊攻擊時，機器人可以自動詢問並還原最近 72 小時內的快照，完全恢復伺服器結構。</p>
+
+            <h3>快照會保留多久？</h3>
+            <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照會自動清理。管理員可在此期間使用 /restore-snapshot 指令進行還原。</p>
+
             <h3>AntiNuke360 是完全免費嗎？</h3>
             <p>是。AntiNuke360 永久免費，亦永久開源，不會收取任何費用。</p>
 
             <h3>可以修改並重新發佈 AntiNuke360 嗎？</h3>
             <p>可以。本專案採用 MIT License，只要保留原始許可聲明即可。</p>
 
-            <h3>防護參數可以調整嗎？</h3>
-            <p>目前防護參數固定為 10 秒內最多 7 次敏感操作，無法調整，以確保風險控制在預期範圍內。</p>
-
             <h3>機器人需要哪些權限？</h3>
-            <p>建議給予 administrator 權限；若不方便，可至少給予 ban members、kick members、manage channels、manage roles、manage webhooks。</p>
+            <p>建議給予 administrator 權限。若不方便，至少需要 ban members、kick members、manage channels、manage roles、manage webhooks。</p>
 
             <h3>支援多少伺服器？</h3>
             <p>理論上不限制伺服器數量，實際上取決於所使用的託管環境資源。</p>
@@ -663,7 +702,7 @@
             <p>如有錯誤回報、功能建議或安全問題，建議透過 GitHub Issue 回報。</p>
 
             <div class="button-group">
-                <a href="https://github.com/hoyin666/AntiNuke360" class="button">前往 𝖦𝗂𝗍𝖧𝗎𝖻</a>
+                <a href="https://github.com/hoyin666/AntiNuke360" class="button">前往 GitHub</a>
                 <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">查看機器人頁面</a>
             </div>
 
@@ -672,13 +711,13 @@
                 <li>開發者 ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.0（2025 年 11 月）</li>
+                <li>目前版本：v1.1（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
 
     <footer>
-        AntiNuke360 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.1 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
@@ -725,4 +764,4 @@
         });
     </script>
 </body>
-    </html>
+</html>
