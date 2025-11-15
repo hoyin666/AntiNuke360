@@ -1,3 +1,2 @@
-discord.py>=2.3.0
-aiofiles>=23.0.0
-python-dotenv>=1.0.0
+discord.py
+python-dotenv
