@@ -51,7 +51,10 @@ STATUS_MESSAGES = [
     "這......巧克力太甜了...",
     "那是......什麼感覺？",
     "FBI Open Door（誤）",
-    "老利（跑錯台了）"
+    "老利（跑錯台了）",
+    "鋒利度測試（跑錯台了）",
+    "我不會炸群，因為我不是TSBOOM www",
+    "中國的會爆炸，AntiNuke360的會防炸"
     ]
 
 def load_blacklist():
