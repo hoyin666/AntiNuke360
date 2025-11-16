@@ -538,8 +538,8 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
     remaining = snapshot_time_remaining(snapshot)
     owner = guild.owner
     message_text = (
-        f"AntiNuke360 偵測到伺服器可能遭受大規模破壞攻擊。\n"
-        f"我們偵測到一個快照可用，剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘。\n"
+        f"AntiNuke360 偵測到你的伺服器可能遭受大規模破壞攻擊。\n"
+        f"AntiNuke360 偵測到一個快照可用，剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘。\n"
         "回覆 `Y` 以自動還原伺服器結構（會先嘗試刪除可刪除的身分組與頻道），或回覆 `N` 以略過。\n"
         "您也可以稍後使用斜線指令 `/restore-snapshot` 手動還原。"
     )
@@ -946,7 +946,7 @@ async def on_webhook_update(channel):
             
             if await track_action(guild, actor, "webhook_create"):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "短時間內大量建立 Webhook")
+                await take_action(guild, actor, "行為異常：短時間內大量建立 Webhook")
             break
     except Exception:
         pass
@@ -967,7 +967,7 @@ async def on_message(message):
     
     if await track_action(guild, message.author, "message_send"):
         asyncio.create_task(prompt_restore_on_suspect(guild))
-        await take_action(guild, message.author, "短時間內大量發送訊息")
+        await take_action(guild, message.author, "行為異常短時間內大量發送訊息")
     
     await bot.process_commands(message)
 
@@ -989,7 +989,7 @@ async def on_guild_channel_create(channel):
             
             if await track_action(guild, actor, "channel_create"):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "短時間內大量建立頻道")
+                await take_action(guild, actor, "行為異常：短時間內大量建立頻道")
             break
     except Exception:
         pass
@@ -1011,7 +1011,7 @@ async def on_guild_channel_delete(channel):
             
             if await track_action(guild, actor, "channel_delete"):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "短時間內大量刪除頻道")
+                await take_action(guild, actor, "行為異常：短時間內大量刪除頻道")
             break
     except Exception:
         pass
@@ -1035,7 +1035,7 @@ async def on_member_remove(member):
                 
                 if await track_action(guild, actor, "member_kick"):
                     asyncio.create_task(prompt_restore_on_suspect(guild))
-                    await take_action(guild, actor, "短時間內大量踢出成員")
+                    await take_action(guild, actor, "行為異常：短時間內大量踢出成員")
                 break
     except Exception:
         pass
@@ -1061,7 +1061,7 @@ async def on_member_ban(guild, user):
                 
                 if await track_action(guild, actor, "member_ban"):
                     asyncio.create_task(prompt_restore_on_suspect(guild))
-                    await take_action(guild, actor, "短時間內大量封鎖成員")
+                    await take_action(guild, actor, "行為異常：短時間內大量停權成員")
                 break
     except Exception:
         pass
@@ -1083,7 +1083,7 @@ async def on_guild_role_create(role):
             
             if await track_action(guild, actor, "role_create"):
                 asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "短時間內大量建立角色")
+                await take_action(guild, actor, "行為異常：短時間內大量建立身分組")
             break
     except Exception:
         pass
