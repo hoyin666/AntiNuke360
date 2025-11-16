@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.1.1 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="description" content="AntiNuke360 v1.2 - 永久免費、永久開源的 Discord 伺服器防護機制">
     <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
-    <title>AntiNuke360 v1.1.1 - Discord 伺服器防護機制</title>
+    <title>AntiNuke360 v1.2 - Discord 伺服器防護機制</title>
     <style>
         * {
             margin: 0;
@@ -287,8 +287,8 @@
             text-transform: uppercase;
         }
 
-        .badge.fixed {
-            background: #f59e0b;
+        .badge.security {
+            background: #ef4444;
         }
 
         .button-group {
@@ -484,7 +484,7 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.1.1 - 最新穩定版</div>
+        <div class="version">v1.2 - 安全強化版</div>
         <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
     </header>
 
@@ -552,16 +552,12 @@
                     <p>自動建立伺服器結構快照，遭受攻擊後可完全還原。快照保留 72 小時。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>一鍵還原功能<span class="badge fixed">v1.1.1 修復</span></h3>
-                    <p>攻擊發生時自動詢問是否還原，完全恢復伺服器架構。修復了頻道遺漏問題。</p>
+                    <h3>三層白名單系統<span class="badge security">v1.2 安全修復</span></h3>
+                    <p>防踢白名單、臨時白名單、永久白名單，區分管理員和擁有者權限，防止濫用。</p>
                 </div>
                 <div class="feature-card">
                     <h3>全域黑名單系統</h3>
                     <p>維護全域黑名單，記錄已知惡意機器人與攻擊者，新成員加入時即時比對並強制移除。</p>
-                </div>
-                <div class="feature-card">
-                    <h3>本地伺服器白名單</h3>
-                    <p>每個伺服器都可獨立管理白名單，可信任的機器人不會被防護系統干擾。</p>
                 </div>
                 <div class="feature-card">
                     <h3>全域白名單系統</h3>
@@ -578,6 +574,10 @@
                 <div class="feature-card">
                     <h3>成員加入掃描</h3>
                     <p>新成員加入時自動檢查黑名單和白名單，將風險降到最低。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>記錄頻道系統<span class="badge">v1.2 新增</span></h3>
+                    <p>管理員可設定記錄頻道，所有防護事件和白名單操作都會記錄。</p>
                 </div>
                 <div class="feature-card">
                     <h3>自訂狀態文字</h3>
@@ -607,8 +607,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.1.1)：
-                    <pre><code>python AntiNuke360_v1.1.1.py</code></pre>
+                <li>啟動機器人 (v1.2)：
+                    <pre><code>python AntiNuke360_v1.2.py</code></pre>
                 </li>
             </ol>
 
@@ -633,45 +633,62 @@
             <h2>指令</h2>
 
             <h3>/status</h3>
-            <p>查看 AntiNuke360 的當前運行狀態、防護參數與黑名單統計。</p>
+            <p>查看 AntiNuke360 的當前運行狀態、防護參數與統計。</p>
 
             <h3>/scan-blacklist</h3>
             <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。</p>
 
-            <h3>/restore-snapshot <span class="badge fixed">v1.1.1 改進</span></h3>
-            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。v1.1.1 修復了頻道遺漏和權限覆蓋問題。</p>
+            <h3>/restore-snapshot</h3>
+            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。</p>
 
-            <h3>/add-server-white [ID]</h3>
-            <p>將指定機器人加入本伺服器白名單。需要管理員權限。</p>
+            <h3>/add-server-temp [ID]</h3>
+            <p>將機器人加入臨時白名單 (1 小時自動過期)。需要管理員權限。</p>
 
-            <h3>/remove-server-white [ID]</h3>
-            <p>從本伺服器白名單移除指定機器人。需要管理員權限。</p>
+            <h3>/remove-server-temp [ID]</h3>
+            <p>從臨時白名單移除機器人。需要管理員權限。</p>
 
             <h3>/server-whitelist</h3>
-            <p>查看本伺服器目前的白名單成員列表。需要管理員權限。</p>
+            <p>查看本伺服器的白名單狀態 (防踢、臨時、永久)。需要管理員權限。</p>
+
+            <h3>/set-log-channel [#channel]</h3>
+            <p>設置本伺服器的記錄頻道。所有防護事件都會記錄在此。需要管理員權限。</p>
+
+            <h3 style="margin-top: 24px;">伺服器擁有者指令</h3>
+
+            <h3>/add-server-anti-kick [ID]</h3>
+            <p>將機器人加入防踢白名單。允許全域黑名單帳號加入但記錄監控。</p>
+
+            <h3>/remove-server-anti-kick [ID]</h3>
+            <p>從防踢白名單移除機器人。</p>
+
+            <h3>/add-server-perm [ID]</h3>
+            <p>將機器人加入永久白名單。對所有敏感操作完全豁免。</p>
+
+            <h3>/remove-server-perm [ID]</h3>
+            <p>從永久白名單移除機器人。</p>
 
             <h3 style="margin-top: 24px;">開發者指令</h3>
 
             <h3>/add-black [ID] [原因]</h3>
-            <p>將機器人加入全域黑名單，並在所有伺服器中掃描與停權。</p>
+            <p>將機器人加入全域黑名單。</p>
 
             <h3>/remove-black [ID]</h3>
-            <p>從全域黑名單移除指定機器人。</p>
+            <p>從全域黑名單移除機器人。</p>
 
             <h3>/add-white [ID] [原因]</h3>
             <p>將機器人加入全域白名單。</p>
 
             <h3>/remove-white [ID]</h3>
-            <p>從全域白名單移除指定機器人。</p>
+            <p>從全域白名單移除機器人。</p>
 
             <h3>/blacklist</h3>
-            <p>查看全域黑名單，顯示前若干筆記錄。</p>
+            <p>查看全域黑名單。</p>
 
             <h3>/whitelist-list</h3>
-            <p>查看全域白名單，顯示前若干筆記錄。</p>
+            <p>查看全域白名單。</p>
 
             <h3>/scan-all-guilds</h3>
-            <p>在所有伺服器中掃描並停權全域黑名單成員。</p>
+            <p>在所有伺服器中掃描並停權黑名單成員。</p>
         </div>
     </section>
 
@@ -679,11 +696,14 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
-            <h3>v1.1.1 相比 v1.1 有什麼改進？</h3>
-            <p>v1.1.1 修復了還原功能中的多個缺陷：修復了頻道刪除遺漏問題、改進了角色順位調整邏輯、增強了權限覆蓋還原的精確度，以及改進了錯誤處理和邊界情況。現在還原功能更加穩定可靠。</p>
+            <h3>v1.2 修復了什麼 0day 漏洞？</h3>
+            <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
+
+            <h3>三層白名單系統有什麼區別？</h3>
+            <p>防踢白名單由伺服器擁有者管理，允許全域黑名單帳號加入但記錄監控。臨時白名單由管理員管理，1 小時自動過期。永久白名單由伺服器擁有者管理，對所有操作完全豁免。</p>
 
             <h3>快照會保留多久？</h3>
-            <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照會自動清理。管理員可在此期間使用 /restore-snapshot 指令進行還原。</p>
+            <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照會自動清理。</p>
 
             <h3>AntiNuke360 是完全免費嗎？</h3>
             <p>是。AntiNuke360 永久免費，亦永久開源，不會收取任何費用。</p>
@@ -693,9 +713,6 @@
 
             <h3>機器人需要哪些權限？</h3>
             <p>建議給予 administrator 權限。若不方便，至少需要 ban members、kick members、manage channels、manage roles、manage webhooks。</p>
-
-            <h3>支援多少伺服器？</h3>
-            <p>理論上不限制伺服器數量，實際上取決於所使用的託管環境資源。</p>
         </div>
     </section>
 
@@ -715,13 +732,13 @@
                 <li>開發者 ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.1.1（2025 年 11 月）</li>
+                <li>目前版本：v1.2（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
 
     <footer>
-        AntiNuke360 v1.1.1 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.2 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
@@ -768,4 +785,4 @@
         });
     </script>
 </body>
-    </html>
+</html>
