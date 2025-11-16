@@ -18,13 +18,20 @@ SERVER_WHITELIST_FILE = "server_whitelist.json"
 GUILDS_FILE = "guilds_data.json"
 SNAPSHOT_DIR = Path("snapshots")
 SNAPSHOT_TTL_SECONDS = 72 * 3600  # 72 hours
-VERSION = "v1.1.1"
+VERSION = "v1.2"
 
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
 user_actions = defaultdict(lambda: defaultdict(lambda: defaultdict(deque)))
 whitelisted_users = defaultdict(set)
-server_whitelisted_bots = defaultdict(set)
+# server_whitelists structure (in-memory):
+# guild_id -> {
+#   "anti_kick": set(ids),
+#   "temporary": {id: expiry_ts},
+#   "permanent": set(ids),
+#   "log_channel": channel_id or None
+# }
+server_whitelists = defaultdict(lambda: {"anti_kick": set(), "temporary": {}, "permanent": set(), "log_channel": None})
 banned_in_session = defaultdict(set)
 notified_bans = defaultdict(set)
 
@@ -39,6 +46,21 @@ PROTECTION_CONFIG = {
     "max_actions": 7,
     "window_seconds": 10,
     "enabled": True
+}
+
+# 臨時白名單容許值（針對敏感操作）
+TEMP_WHITELIST_MAX = 15
+TEMP_WHITELIST_WINDOW = 15  # seconds
+TEMP_WHITELIST_TTL = 3600  # 1 hour
+
+# 敏感操作清單
+SENSITIVE_ACTIONS = {
+    "channel_create",
+    "channel_delete",
+    "member_kick",
+    "member_ban",
+    "role_create",
+    "webhook_create"
 }
 
 # 自訂狀態文字
@@ -97,22 +119,47 @@ def save_whitelist(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"[WHITELIST] 已儲存白名單到 {WHITELIST_FILE}")
 
+# 新的伺服器白名單載入與儲存，支援 anti_kick / temporary / permanent / log_channel
 def load_server_whitelist():
     if os.path.exists(SERVER_WHITELIST_FILE):
         try:
             with open(SERVER_WHITELIST_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                for guild_id, bot_list in data.items():
-                    server_whitelisted_bots[int(guild_id)] = set(bot_list)
+                for gid_str, v in data.items():
+                    try:
+                        gid = int(gid_str)
+                    except Exception:
+                        continue
+                    anti = set(int(x) for x in v.get("anti_kick", []))
+                    perm = set(int(x) for x in v.get("permanent", []))
+                    temp = {}
+                    for k, expiry in v.get("temporary", {}).items():
+                        try:
+                            temp[int(k)] = float(expiry)
+                        except Exception:
+                            continue
+                    log_ch = v.get("log_channel", None)
+                    if log_ch is not None:
+                        try:
+                            log_ch = int(log_ch)
+                        except Exception:
+                            log_ch = None
+                    server_whitelists[gid] = {"anti_kick": anti, "temporary": temp, "permanent": perm, "log_channel": log_ch}
                 return data
-        except Exception:
+        except Exception as e:
+            print(f"[SERVER_WHITELIST] 載入失敗: {e}")
             return {}
     return {}
 
 def save_server_whitelist():
     data = {}
-    for guild_id, bot_set in server_whitelisted_bots.items():
-        data[str(guild_id)] = list(bot_set)
+    for gid, v in server_whitelists.items():
+        data[str(gid)] = {
+            "anti_kick": [str(x) for x in sorted(v["anti_kick"])],
+            "permanent": [str(x) for x in sorted(v["permanent"])],
+            "temporary": {str(k): vval for k, vval in v["temporary"].items()},
+            "log_channel": str(v["log_channel"]) if v["log_channel"] is not None else None
+        }
     with open(SERVER_WHITELIST_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"[SERVER_WHITELIST] 已儲存伺服器白名單到 {SERVER_WHITELIST_FILE}")
@@ -158,6 +205,8 @@ class AntiNukeBot(commands.Bot):
         intents.members = True
         intents.moderation = True
         intents.message_content = True
+        # 需要 presence intents 來找最近上線管理員（best-effort）
+        intents.presences = True
         super().__init__(command_prefix="!", intents=intents)
         self.status_index = 0
         self.last_status_update = 0
@@ -644,6 +693,12 @@ async def scan_and_ban_blacklist(guild):
             user_id_str = str(member.id)
             if user_id_str in bot_blacklist:
                 try:
+                    # 如果此成員在伺服器的 anti_kick 白名單中，則跳過封鎖（伺服器擁有者已允許）
+                    anti_kick = server_whitelists[guild.id]["anti_kick"]
+                    if member.id in anti_kick:
+                        print(f"[SCAN] {member} 在伺服器防踢白名單中，跳過停權")
+                        continue
+
                     if member.id not in banned_in_session[guild.id]:
                         blacklist_info = bot_blacklist[user_id_str]
                         ban_reason = blacklist_info.get('reason', '黑名單機器人')
@@ -667,11 +722,11 @@ async def check_permission_errors(guild):
         print(f"[PERMISSION] 伺服器 {guild.name} 1 分鐘內出現 10 次權限錯誤，準備離開")
         try:
             embed = discord.Embed(title="身份組權限設錯警告", color=discord.Color.red())
-            embed.description = f"AntiNuke360 在伺服器 '{guild.name}' 中 1 分鐘內遇到 10 次權限不足錯誤 (403 Forbidden)。\n\n請確保 Bot 的身份組具有以下權限：\n- 封禁成員 (Ban Members)\n- 踢出成員 (Kick Members)\n- 管理頻道 (Manage Channels)\n- 管理角色 (Manage Roles)\n\n將身份組移至頻道權限或伺服器權限中的其他管理員角色之上。\n\n修復後，本 Bot 將自動重新加入伺服器。"
-            embed.set_footer(text="AntiNuke360 v1.1.1")
+            embed.description = f"AntiNuke360 在伺服器 '{guild.name}' 中 1 分鐘內遇到 10 次權限不足錯誤 (403 Forbidden)。\n\n請確保 Bot 的身份組具有以下權限：\n- 封禁[...]\n"
+            embed.set_footer(text="AntiNuke360 v1.2beta")
             try:
-                await guild.owner.send(embed=embed)
-                print(f"[PERMISSION] 已向伺服器所有者發送通知")
+                await send_log(guild, embed=embed)
+                print(f"[PERMISSION] 已向伺服器所有者/記錄頻道發送通知")
             except Exception as e:
                 print(f"[PERMISSION ERROR] 無法發送 DM: {e}")
         except Exception as e:
@@ -683,23 +738,132 @@ async def check_permission_errors(guild):
             print(f"[PERMISSION ERROR] 無法離開伺服器: {e}")
         permission_errors[gid].clear()
 
+# Helper functions for server whitelist checks and management
+def purge_expired_temporary(guild_id: int):
+    now = time.time()
+    temp = server_whitelists[guild_id]["temporary"]
+    remove = [uid for uid, expiry in temp.items() if expiry <= now]
+    for uid in remove:
+        del temp[uid]
+
+def is_permanent_whitelisted(guild_id: int, user_id: int) -> bool:
+    return user_id in server_whitelists[guild_id]["permanent"]
+
+def is_temporary_whitelisted(guild_id: int, user_id: int) -> bool:
+    purge_expired_temporary(guild_id)
+    return user_id in server_whitelists[guild_id]["temporary"]
+
+def is_anti_kick_whitelisted(guild_id: int, user_id: int) -> bool:
+    return user_id in server_whitelists[guild_id]["anti_kick"]
+
+def add_temporary_whitelist(guild_id: int, user_id: int):
+    server_whitelists[guild_id]["temporary"][user_id] = time.time() + TEMP_WHITELIST_TTL
+    save_server_whitelist()
+
+def remove_temporary_whitelist(guild_id: int, user_id: int):
+    temp = server_whitelists[guild_id]["temporary"]
+    if user_id in temp:
+        del temp[user_id]
+        save_server_whitelist()
+
+def add_permanent_whitelist(guild_id: int, user_id: int):
+    server_whitelists[guild_id]["permanent"].add(user_id)
+    save_server_whitelist()
+
+def remove_permanent_whitelist(guild_id: int, user_id: int):
+    server_whitelists[guild_id]["permanent"].discard(user_id)
+    save_server_whitelist()
+
+def add_anti_kick_whitelist(guild_id: int, user_id: int):
+    server_whitelists[guild_id]["anti_kick"].add(user_id)
+    save_server_whitelist()
+
+def remove_anti_kick_whitelist(guild_id: int, user_id: int):
+    server_whitelists[guild_id]["anti_kick"].discard(user_id)
+    save_server_whitelist()
+
+def set_log_channel_for_guild(guild_id: int, channel_id: int):
+    server_whitelists[guild_id]["log_channel"] = channel_id
+    save_server_whitelist()
+
+def get_log_channel_for_guild(guild_id: int):
+    return server_whitelists[guild_id].get("log_channel")
+
+# best-effort logger: send to configured log channel if possible; otherwise DM owner and up to 5 most-recently-online admins
+async def send_log(guild: discord.Guild, content: str = None, embed: discord.Embed = None):
+    log_ch_id = get_log_channel_for_guild(guild.id)
+    sent = False
+    if log_ch_id:
+        ch = guild.get_channel(log_ch_id)
+        if ch and isinstance(ch, discord.TextChannel):
+            try:
+                if ch.permissions_for(guild.me).send_messages:
+                    await ch.send(content=content, embed=embed)
+                    sent = True
+                    return True
+            except Exception:
+                sent = False
+    # fallback: DM owner + up to 5 admins closest to being online
+    owner = guild.owner
+    recipients = []
+    if owner:
+        recipients.append(owner)
+    # Find admins (best-effort using presence). Filter members with manage_guild or administrator
+    admins = [m for m in guild.members if (m.guild_permissions.administrator or m.guild_permissions.manage_guild) and not m.bot]
+    # Sort by presence (online > idle > dnd > offline) then by joined_at (recent first)
+    status_priority = {"online": 0, "idle": 1, "dnd": 2, "offline": 3, None: 3}
+    def admin_sort_key(m):
+        st = getattr(m, "status", None)
+        pr = status_priority.get(str(st), 3)
+        joined = m.joined_at.timestamp() if m.joined_at else 0
+        return (pr, -joined)
+    admins_sorted = sorted(admins, key=admin_sort_key)
+    for a in admins_sorted:
+        if a not in recipients:
+            recipients.append(a)
+        if len(recipients) >= 6:
+            break
+    # send DMs
+    for r in recipients:
+        try:
+            dm = await r.create_dm()
+            await dm.send(content=content, embed=embed)
+            sent = True
+        except Exception:
+            continue
+    return sent
+
 async def track_action(guild, user, action_type):
     if guild is None or user is None:
         return False
     if user.id == guild.owner_id:
         return False
+    # 永久白名單: 對敏感操作有免疫
+    if is_permanent_whitelisted(guild.id, user.id):
+        return False
+    # 清掉過期的臨時白名單
+    purge_expired_temporary(guild.id)
+    # 防止伺服器級別白名單對全域白名單/黑名單做重複檢查
     if user.id in whitelisted_users[guild.id]:
         return False
-    if user.id in server_whitelisted_bots[guild.id]:
+    # 如果是全域白名單
+    if str(user.id) in bot_whitelist:
         return False
+
     now = time.time()
+    # 如果是敏感操作且在臨時白名單內，使用較寬鬆的限制
+    if action_type in SENSITIVE_ACTIONS and is_temporary_whitelisted(guild.id, user.id):
+        max_count = TEMP_WHITELIST_MAX
+        window = TEMP_WHITELIST_WINDOW
+    else:
+        max_count = PROTECTION_CONFIG["max_actions"]
+        window = PROTECTION_CONFIG["window_seconds"]
+
     actions = user_actions[guild.id][user.id][action_type]
     actions.append(now)
-    window = PROTECTION_CONFIG["window_seconds"]
     while actions and now - actions[0] > window:
         actions.popleft()
     current_count = len(actions)
-    max_count = PROTECTION_CONFIG["max_actions"]
     if current_count > max_count:
         return True
     return False
@@ -744,7 +908,7 @@ async def take_action(guild, user, reason):
             embed.add_field(name="伺服器 ID", value=str(gid), inline=True)
             embed.set_footer(text="AntiNuke360")
             try:
-                await guild.owner.send(embed=embed)
+                await send_log(guild, embed=embed)
             except Exception:
                 pass
     except discord.Forbidden as e:
@@ -812,9 +976,11 @@ async def send_welcome_message(guild):
 - 在試圖加入時立即封鎖
 - 支援手動掃描並停權黑名單成員
 
-本地白名單系統
-- 每個伺服器獨立管理
-- 信任的機器人不會被影響
+本地白名單系統 (新增)
+- 分為：防踢白名單 / 臨時白名單 / 永久白名單
+- 防踢白名單：允許被列入全域黑名單的帳號/機器人加入此伺服器（僅限伺服器擁有者管理）
+- 臨時白名單：在 1 小時內對敏感操作放寬至 15 次 / 15 秒（管理員可增刪）
+- 永久白名單：對敏感操作完全免疫，無時間限制（僅限伺服器擁有者管理）
 
 固定防護參數
 - 最優的靈敏度設置
@@ -826,10 +992,15 @@ async def send_welcome_message(guild):
             name="使用指南",
             value="""管理員指令:
 /status - 查看防護狀態
-/add-server-white [ID] - 加入本伺服器白名單
-/remove-server-white [ID] - 從本伺服器白名單移除
-/server-whitelist - 查看本伺服器白名單
-/scan-blacklist - 掃描並停權伺服器中的黑名單成員
+/add-server-temp [ID] - 將成員或機器人加入本伺服器臨時白名單 (管理員，可移除)
+/remove-server-temp [ID]
+/set-log-channel [#channel] - 指定記錄頻道 (管理員)
+
+伺服器擁有者指令:
+/add-server-anti-kick [ID] - 防踢白名單 (僅擁有者)
+/remove-server-anti-kick [ID]
+/add-server-perm [ID] - 永久白名單 (僅擁有者)
+/remove-server-perm [ID]
 
 開發者指令:
 /add-black [ID] [原因] - 加入全域黑名單
@@ -861,7 +1032,7 @@ async def send_welcome_message(guild):
             inline=False
         )
         
-        embed.set_footer(text="AntiNuke360 v1.1.1 | 伺服器防護專家")
+        embed.set_footer(text="AntiNuke360 v1.2beta | 伺服器防護專家")
         
         await channel.send(embed=embed)
         print(f"[WELCOME] 已在伺服器 {guild.name} 創建歡迎頻道")
@@ -873,14 +1044,18 @@ async def send_welcome_message(guild):
 async def on_guild_join(guild):
     print(f"[JOIN] 已加入新伺服器: {guild.name} (ID: {guild.id})")
     add_to_guilds_data(guild.id)
+    # ensure default whitelist entry exists
+    if guild.id not in server_whitelists:
+        server_whitelists[guild.id] = {"anti_kick": set(), "temporary": {}, "permanent": set(), "log_channel": None}
+        save_server_whitelist()
     await send_welcome_message(guild)
 
 @bot.event
 async def on_guild_remove(guild):
     print(f"[LEAVE] 已從伺服器移除: {guild.name} (ID: {guild.id})")
     remove_from_guilds_data(guild.id)
-    if guild.id in server_whitelisted_bots:
-        del server_whitelisted_bots[guild.id]
+    if guild.id in server_whitelists:
+        del server_whitelists[guild.id]
         save_server_whitelist()
     if guild.id in permission_errors:
         del permission_errors[guild.id]
@@ -897,7 +1072,20 @@ async def on_member_join(member):
         except Exception as e:
             print(f"[SNAPSHOT ERROR] 建立快照時發生錯誤: {e}")
     
+    # 黑名單處理: 若在全域黑名單但在伺服器的 anti_kick 白名單中，則允許加入
     if user_id_str in bot_blacklist:
+        if is_anti_kick_whitelisted(guild.id, member.id):
+            print(f"[JOIN] {member} (全域黑名單但在伺服器防踢白名單) 加入伺服器 {guild.name}，允許")
+            # 記錄該事件
+            embed = discord.Embed(title="[AntiNuke360 記錄]", color=discord.Color.orange())
+            embed.description = f"被列入全域黑名單的使用者/機器人 `{member}` (ID: `{member.id}`) 被允許加入此伺服器，因為其在本伺服器的防踢白名單中。"
+            embed.add_field(name="伺服器", value=guild.name, inline=True)
+            embed.set_footer(text="AntiNuke360")
+            try:
+                await send_log(guild, embed=embed)
+            except Exception:
+                pass
+            return
         print(f"[JOIN] {member} (黑名單機器人) 試圖加入伺服器 {guild.name}，立即封鎖")
         try:
             blacklist_info = bot_blacklist[user_id_str]
@@ -913,7 +1101,7 @@ async def on_member_join(member):
                 embed.add_field(name="伺服器", value=guild.name, inline=True)
                 embed.set_footer(text="AntiNuke360")
                 try:
-                    await guild.owner.send(embed=embed)
+                    await send_log(guild, embed=embed)
                 except Exception:
                     pass
                 
@@ -925,8 +1113,8 @@ async def on_member_join(member):
             print(f"[BAN ERROR] 無法封鎖 {member}: {e}")
     elif user_id_str in bot_whitelist:
         print(f"[JOIN] {member} (全域白名單機器人) 加入伺服器 {guild.name}，允許")
-    elif member.id in server_whitelisted_bots[guild.id]:
-        print(f"[JOIN] {member} (伺服器白名單機器人) 加入伺服器 {guild.name}，允許")
+    elif is_permanent_whitelisted(guild.id, member.id):
+        print(f"[JOIN] {member} (本伺服器永久白名單) 加入伺服器 {guild.name}，允許")
 
 @bot.event
 async def on_webhook_update(channel):
@@ -938,10 +1126,11 @@ async def on_webhook_update(channel):
             actor_id_str = str(actor.id)
             
             if actor_id_str in bot_blacklist:
+                # 若 actor 在 anti_kick 白名單，這只適用於加入時，對行為仍需檢測
                 await take_action(guild, actor, "黑名單機器人")
                 break
             
-            if actor_id_str in bot_whitelist or actor.id in server_whitelisted_bots[guild.id]:
+            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
                 break
             
             if await track_action(guild, actor, "webhook_create"):
@@ -962,7 +1151,7 @@ async def on_message(message):
     if user_id_str in bot_blacklist or user_id_str in bot_whitelist:
         return
     
-    if message.author.id in server_whitelisted_bots[guild.id]:
+    if is_permanent_whitelisted(guild.id, message.author.id):
         return
     
     if await track_action(guild, message.author, "message_send"):
@@ -984,7 +1173,7 @@ async def on_guild_channel_create(channel):
                 await take_action(guild, actor, "黑名單機器人")
                 break
             
-            if actor_id_str in bot_whitelist or actor.id in server_whitelisted_bots[guild.id]:
+            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
                 break
             
             if await track_action(guild, actor, "channel_create"):
@@ -1006,7 +1195,7 @@ async def on_guild_channel_delete(channel):
                 await take_action(guild, actor, "黑名單機器人")
                 continue
             
-            if actor_id_str in bot_whitelist or actor.id in server_whitelisted_bots[guild.id]:
+            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
                 continue
             
             if await track_action(guild, actor, "channel_delete"):
@@ -1030,7 +1219,7 @@ async def on_member_remove(member):
                     await take_action(guild, actor, "黑名單機器人")
                     break
                 
-                if actor_id_str in bot_whitelist or actor.id in server_whitelisted_bots[guild.id]:
+                if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
                     break
                 
                 if await track_action(guild, actor, "member_kick"):
@@ -1056,7 +1245,7 @@ async def on_member_ban(guild, user):
                     await take_action(guild, actor, "黑名單機器人")
                     break
                 
-                if actor_id_str in bot_whitelist or actor.id in server_whitelisted_bots[guild.id]:
+                if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
                     break
                 
                 if await track_action(guild, actor, "member_ban"):
@@ -1078,7 +1267,7 @@ async def on_guild_role_create(role):
                 await take_action(guild, actor, "黑名單機器人")
                 break
             
-            if actor_id_str in bot_whitelist or actor.id in server_whitelisted_bots[guild.id]:
+            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
                 break
             
             if await track_action(guild, actor, "role_create"):
@@ -1099,7 +1288,13 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="偵測時間窗 (秒)", value=str(PROTECTION_CONFIG["window_seconds"]), inline=False)
     embed.add_field(name="全域黑名單機器人", value=str(len(bot_blacklist)), inline=False)
     embed.add_field(name="全域白名單機器人", value=str(len(bot_whitelist)), inline=False)
-    embed.add_field(name="本伺服器白名單機器人", value=str(len(server_whitelisted_bots[interaction.guild.id])), inline=False)
+    gid = interaction.guild.id
+    anti_count = len(server_whitelists[gid]["anti_kick"]) if gid in server_whitelists else 0
+    temp_count = len([k for k, v in server_whitelists[gid]["temporary"].items() if v > time.time()]) if gid in server_whitelists else 0
+    perm_count = len(server_whitelists[gid]["permanent"]) if gid in server_whitelists else 0
+    embed.add_field(name="伺服器防踢白名單人數", value=str(anti_count), inline=False)
+    embed.add_field(name="伺服器臨時白名單人數", value=str(temp_count), inline=False)
+    embed.add_field(name="伺服器永久白名單人數", value=str(perm_count), inline=False)
     has_snapshot = snapshot_is_valid(load_snapshot_file(interaction.guild.id))
     embed.add_field(name="伺服器快照", value=f"{'有有效快照' if has_snapshot else '無有效快照'}", inline=False)
     embed.add_field(name="自訂狀態文字", value=f"已啟用 ({len(STATUS_MESSAGES)} 個，每 10 秒輪流)", inline=False)
@@ -1117,70 +1312,140 @@ async def scan_blacklist(interaction: discord.Interaction):
         embed.add_field(name="掃描人數", value=str(scan_count), inline=True)
         embed.add_field(name="停權人數", value=str(banned_count), inline=True)
         embed.add_field(name="伺服器", value=interaction.guild.name, inline=False)
-        embed.set_footer(text="AntiNuke360 v1.1.1")
+        embed.set_footer(text="AntiNuke360 v1.2beta")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="掃描失敗", color=discord.Color.red())
         embed.description = f"掃描伺服器時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.1.1")
+        embed.set_footer(text="AntiNuke360 v1.2beta")
         await interaction.followup.send(embed=embed)
 
+# 臨時白名單 - 管理員可增刪
 @app_commands.checks.has_permissions(administrator=True)
-@bot.tree.command(name="add-server-white", description="將機器人加入本伺服器白名單 (管理員)")
-@app_commands.describe(bot_id="機器人 ID")
-async def add_server_white(interaction: discord.Interaction, bot_id: str):
+@bot.tree.command(name="add-server-temp", description="將成員或機器人加入本伺服器臨時白名單 (管理員)")
+@app_commands.describe(entity_id="成員或機器人 ID")
+async def add_server_temp(interaction: discord.Interaction, entity_id: str):
+    await interaction.response.defer(ephemeral=True)
     try:
-        bot_id_int = int(bot_id)
+        eid = int(entity_id)
     except Exception:
-        await interaction.response.send_message("無效的機器人 ID", ephemeral=True)
+        await interaction.followup.send("無效的 ID", ephemeral=True)
         return
-    gid = interaction.guild.id
-    if bot_id_int in server_whitelisted_bots[gid]:
-        await interaction.response.send_message(f"該機器人已在本伺服器白名單中", ephemeral=True)
-        return
-    server_whitelisted_bots[gid].add(bot_id_int)
-    save_server_whitelist()
-    embed = discord.Embed(title="已加入本伺服器白名單", color=discord.Color.green())
-    embed.description = f"機器人 ID: `{bot_id}` 已加入本伺服器白名單"
-    embed.add_field(name="伺服器", value=interaction.guild.name, inline=True)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    add_temporary_whitelist(interaction.guild.id, eid)
+    await interaction.followup.send(f"已將 `{entity_id}` 加入本伺服器臨時白名單 (1 小時)", ephemeral=True)
 
 @app_commands.checks.has_permissions(administrator=True)
-@bot.tree.command(name="remove-server-white", description="從本伺服器白名單移除機器人 (管理員)")
-@app_commands.describe(bot_id="機器人 ID")
-async def remove_server_white(interaction: discord.Interaction, bot_id: str):
+@bot.tree.command(name="remove-server-temp", description="從本伺服器臨時白名單移除成員或機器人 (管理員)")
+@app_commands.describe(entity_id="成員或機器人 ID")
+async def remove_server_temp(interaction: discord.Interaction, entity_id: str):
+    await interaction.response.defer(ephemeral=True)
     try:
-        bot_id_int = int(bot_id)
+        eid = int(entity_id)
     except Exception:
-        await interaction.response.send_message("無效的機器人 ID", ephemeral=True)
+        await interaction.followup.send("無效的 ID", ephemeral=True)
         return
-    gid = interaction.guild.id
-    if bot_id_int not in server_whitelisted_bots[gid]:
-        await interaction.response.send_message(f"該機器人不在本伺服器白名單中", ephemeral=True)
-        return
-    server_whitelisted_bots[gid].discard(bot_id_int)
-    save_server_whitelist()
-    embed = discord.Embed(title="已從本伺服器白名單移除", color=discord.Color.red())
-    embed.description = f"機器人 ID: `{bot_id}` 已從本伺服器白名單移除"
-    embed.add_field(name="伺服器", value=interaction.guild.name, inline=True)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    remove_temporary_whitelist(interaction.guild.id, eid)
+    await interaction.followup.send(f"已從本伺服器臨時白名單移除 `{entity_id}`", ephemeral=True)
 
-@app_commands.checks.has_permissions(administrator=True)
+# 防踢白名單 - 只有伺服器擁有者可以設定
+@bot.tree.command(name="add-server-anti-kick", description="將成員或機器人加入本伺服器防踢白名單 (僅擁有者)")
+@app_commands.describe(entity_id="成員或機器人 ID")
+async def add_server_anti_kick(interaction: discord.Interaction, entity_id: str):
+    if interaction.user.id != interaction.guild.owner_id:
+        await interaction.response.send_message("只有伺服器擁有者可使用此指令", ephemeral=True)
+        return
+    try:
+        eid = int(entity_id)
+    except Exception:
+        await interaction.response.send_message("無效的 ID", ephemeral=True)
+        return
+    add_anti_kick_whitelist(interaction.guild.id, eid)
+    await interaction.response.send_message(f"已將 `{entity_id}` 加入本伺服器防踢白名單", ephemeral=True)
+
+@bot.tree.command(name="remove-server-anti-kick", description="從本伺服器防踢白名單移除成員或機器人 (僅擁有者)")
+@app_commands.describe(entity_id="成員或機器人 ID")
+async def remove_server_anti_kick(interaction: discord.Interaction, entity_id: str):
+    if interaction.user.id != interaction.guild.owner_id:
+        await interaction.response.send_message("只有伺服器擁有者可使用此指令", ephemeral=True)
+        return
+    try:
+        eid = int(entity_id)
+    except Exception:
+        await interaction.response.send_message("無效的 ID", ephemeral=True)
+        return
+    remove_anti_kick_whitelist(interaction.guild.id, eid)
+    await interaction.response.send_message(f"已從本伺服器防踢白名單移除 `{entity_id}`", ephemeral=True)
+
+# 永久白名單 - 只有伺服器擁有者可以設定
+@bot.tree.command(name="add-server-perm", description="將成員或機器人加入本伺服器永久白名單 (僅擁有者)")
+@app_commands.describe(entity_id="成員或機器人 ID")
+async def add_server_perm(interaction: discord.Interaction, entity_id: str):
+    if interaction.user.id != interaction.guild.owner_id:
+        await interaction.response.send_message("只有伺服器擁有者可使用此指令", ephemeral=True)
+        return
+    try:
+        eid = int(entity_id)
+    except Exception:
+        await interaction.response.send_message("無效的 ID", ephemeral=True)
+        return
+    add_permanent_whitelist(interaction.guild.id, eid)
+    await interaction.response.send_message(f"已將 `{entity_id}` 加入本伺服器永久白名單", ephemeral=True)
+
+@bot.tree.command(name="remove-server-perm", description="從本伺服器永久白名單移除成員或機器人 (僅擁有者)")
+@app_commands.describe(entity_id="成員或機器人 ID")
+async def remove_server_perm(interaction: discord.Interaction, entity_id: str):
+    if interaction.user.id != interaction.guild.owner_id:
+        await interaction.response.send_message("只有伺服器擁有者可使用此指令", ephemeral=True)
+        return
+    try:
+        eid = int(entity_id)
+    except Exception:
+        await interaction.response.send_message("無效的 ID", ephemeral=True)
+        return
+    remove_permanent_whitelist(interaction.guild.id, eid)
+    await interaction.response.send_message(f"已從本伺服器永久白名單移除 `{entity_id}`", ephemeral=True)
+
 @bot.tree.command(name="server-whitelist", description="查看本伺服器白名單 (管理員)")
 async def server_whitelist(interaction: discord.Interaction):
     gid = interaction.guild.id
-    bots = server_whitelisted_bots[gid]
-    if not bots:
+    anti = server_whitelists[gid]["anti_kick"]
+    temp = server_whitelists[gid]["temporary"]
+    perm = server_whitelists[gid]["permanent"]
+    purge_expired_temporary(gid)
+    if not anti and not temp and not perm:
         await interaction.response.send_message("本伺服器白名單為空", ephemeral=True)
         return
-    lines = [f"{i+1}. `{bot_id}`" for i, bot_id in enumerate(sorted(bots)[:50])]
-    embed = discord.Embed(title=f"本伺服器白名單 ({len(bots)})", color=discord.Color.blue())
-    embed.description = "\n".join(lines)
-    if len(bots) > 50:
-        embed.add_field(name="提示", value=f"還有 {len(bots) - 50} 個機器人未顯示", inline=False)
-    embed.add_field(name="伺服器", value=interaction.guild.name, inline=True)
-    embed.set_footer(text="AntiNuke360 v1.1.1")
+    lines = []
+    if anti:
+        lines.append("防踢白名單:")
+        for i, bid in enumerate(sorted(anti)):
+            lines.append(f"  {i+1}. `{bid}`")
+    if temp:
+        lines.append("臨時白名單 (剩餘秒數):")
+        now = time.time()
+        for i, (bid, expiry) in enumerate(sorted(temp.items(), key=lambda x: x[1])):
+            rem = int(expiry - now)
+            lines.append(f"  {i+1}. `{bid}` - {rem} 秒")
+    if perm:
+        lines.append("永久白名單:")
+        for i, bid in enumerate(sorted(perm)):
+            lines.append(f"  {i+1}. `{bid}`")
+    embed = discord.Embed(title=f"本伺服器白名單狀態", color=discord.Color.blue())
+    embed.description = "\n".join(lines[:30])
+    embed.set_footer(text="AntiNuke360 v1.2beta")
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="set-log-channel", description="設定本伺服器的記錄頻道 (管理員)")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(channel="記錄頻道（提及頻道或 ID）")
+async def set_log_channel(interaction: discord.Interaction, channel: discord.TextChannel = None):
+    if channel is None:
+        # 清除 log channel
+        set_log_channel_for_guild(interaction.guild.id, None)
+        await interaction.response.send_message("已清除記錄頻道設定，未來會私訊伺服器擁有者與管理員。", ephemeral=True)
+        return
+    set_log_channel_for_guild(interaction.guild.id, channel.id)
+    await interaction.response.send_message(f"已將 {channel.mention} 設為記錄頻道。", ephemeral=True)
 
 @bot.tree.command(name="add-black", description="將機器人加入全域黑名單 (開發者)")
 @app_commands.describe(bot_id="機器人 ID", reason="原因")
@@ -1198,7 +1463,7 @@ async def add_black(interaction: discord.Interaction, bot_id: str, reason: str =
     embed = discord.Embed(title="已加入黑名單", color=discord.Color.red())
     embed.description = f"機器人 ID: `{bot_id}` 已加入全域黑名單"
     embed.add_field(name="原因", value=reason if reason else "無", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.1.1")
+    embed.set_footer(text="AntiNuke360 v1.2beta")
     await interaction.followup.send(embed=embed)
     await scan_blacklist_all_guilds()
 
@@ -1266,7 +1531,7 @@ async def blacklist(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.1.1")
+    embed.set_footer(text="AntiNuke360 v1.2beta")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="whitelist-list", description="查看全域白名單 (開發者)")
@@ -1284,7 +1549,7 @@ async def whitelist_list(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.1.1")
+    embed.set_footer(text="AntiNuke360 v1.2beta")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="scan-all-guilds", description="在所有伺服器掃描並停權黑名單成員 (開發者)")
@@ -1297,12 +1562,12 @@ async def scan_all_guilds(interaction: discord.Interaction):
         await scan_blacklist_all_guilds()
         embed = discord.Embed(title="全域黑名單掃描完成", color=discord.Color.green())
         embed.description = "已在所有伺服器中掃描並停權黑名單成員"
-        embed.set_footer(text="AntiNuke360 v1.1.1")
+        embed.set_footer(text="AntiNuke360 v1.2beta")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="全域掃描失敗", color=discord.Color.red())
         embed.description = f"掃描時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.1.1")
+        embed.set_footer(text="AntiNuke360 v1.2beta")
         await interaction.followup.send(embed=embed)
 
 @app_commands.checks.has_permissions(administrator=True)
@@ -1315,7 +1580,7 @@ async def restore_snapshot_command(interaction: discord.Interaction):
         await interaction.followup.send("伺服器沒有有效的快照可供還原或已過期。", ephemeral=True)
         return
     remaining = snapshot_time_remaining(snapshot)
-    await interaction.followup.send(f"開始還原快照 (剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘)。這可能需要一段時間且會先嘗試刪除可刪除的現有頻道與身分組...", ephemeral=True)
+    await interaction.followup.send(f"開始還原快照 (剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘)。這可能需要一段時間且會先嘗試刪除可刪除的現有頻道與身分組。", ephemeral=True)
     ok, msg = await perform_restore(guild, ctx_sender=interaction.user)
     if ok:
         await interaction.followup.send(f"還原完成: {msg}", ephemeral=True)
