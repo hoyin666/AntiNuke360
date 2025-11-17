@@ -88,7 +88,9 @@ STATUS_MESSAGES = [
     "中國的會爆炸，AntiNuke360的會防炸",
     "你好 我吃一點ww",
     "english or spanish",
-    "sorry, I am gay"
+    "sorry, I am gay",
+    "洋蔥女裝：來都來了",
+    "你們都是佬🛐"
     ]
 
 def load_blacklist():
@@ -723,7 +725,7 @@ async def check_permission_errors(guild):
         try:
             embed = discord.Embed(title="身份組權限設錯警告", color=discord.Color.red())
             embed.description = f"AntiNuke360 在伺服器 '{guild.name}' 中 1 分鐘內遇到 10 次權限不足錯誤 (403 Forbidden)。\n\n請確保 Bot 的身份組具有以下權限：\n- 封禁[...]\n"
-            embed.set_footer(text="AntiNuke360 v1.2beta")
+            embed.set_footer(text="AntiNuke360 v1.2")
             try:
                 await send_log(guild, embed=embed)
                 print(f"[PERMISSION] 已向伺服器所有者/記錄頻道發送通知")
@@ -1032,7 +1034,7 @@ async def send_welcome_message(guild):
             inline=False
         )
         
-        embed.set_footer(text="AntiNuke360 v1.2beta | 伺服器防護專家")
+        embed.set_footer(text="AntiNuke360 v1.2 | 伺服器防護專家")
         
         await channel.send(embed=embed)
         print(f"[WELCOME] 已在伺服器 {guild.name} 創建歡迎頻道")
@@ -1312,12 +1314,12 @@ async def scan_blacklist(interaction: discord.Interaction):
         embed.add_field(name="掃描人數", value=str(scan_count), inline=True)
         embed.add_field(name="停權人數", value=str(banned_count), inline=True)
         embed.add_field(name="伺服器", value=interaction.guild.name, inline=False)
-        embed.set_footer(text="AntiNuke360 v1.2beta")
+        embed.set_footer(text="AntiNuke360 v1.2")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="掃描失敗", color=discord.Color.red())
         embed.description = f"掃描伺服器時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2beta")
+        embed.set_footer(text="AntiNuke360 v1.2")
         await interaction.followup.send(embed=embed)
 
 # 臨時白名單 - 管理員可增刪
@@ -1432,7 +1434,7 @@ async def server_whitelist(interaction: discord.Interaction):
             lines.append(f"  {i+1}. `{bid}`")
     embed = discord.Embed(title=f"本伺服器白名單狀態", color=discord.Color.blue())
     embed.description = "\n".join(lines[:30])
-    embed.set_footer(text="AntiNuke360 v1.2beta")
+    embed.set_footer(text="AntiNuke360 v1.2")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="set-log-channel", description="設定本伺服器的記錄頻道 (管理員)")
@@ -1463,7 +1465,7 @@ async def add_black(interaction: discord.Interaction, bot_id: str, reason: str =
     embed = discord.Embed(title="已加入黑名單", color=discord.Color.red())
     embed.description = f"機器人 ID: `{bot_id}` 已加入全域黑名單"
     embed.add_field(name="原因", value=reason if reason else "無", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2beta")
+    embed.set_footer(text="AntiNuke360 v1.2")
     await interaction.followup.send(embed=embed)
     await scan_blacklist_all_guilds()
 
@@ -1531,7 +1533,7 @@ async def blacklist(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2beta")
+    embed.set_footer(text="AntiNuke360 v1.2")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="whitelist-list", description="查看全域白名單 (開發者)")
@@ -1549,7 +1551,7 @@ async def whitelist_list(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2beta")
+    embed.set_footer(text="AntiNuke360 v1.2")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="scan-all-guilds", description="在所有伺服器掃描並停權黑名單成員 (開發者)")
@@ -1562,12 +1564,12 @@ async def scan_all_guilds(interaction: discord.Interaction):
         await scan_blacklist_all_guilds()
         embed = discord.Embed(title="全域黑名單掃描完成", color=discord.Color.green())
         embed.description = "已在所有伺服器中掃描並停權黑名單成員"
-        embed.set_footer(text="AntiNuke360 v1.2beta")
+        embed.set_footer(text="AntiNuke360 v1.2")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="全域掃描失敗", color=discord.Color.red())
         embed.description = f"掃描時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2beta")
+        embed.set_footer(text="AntiNuke360 v1.2")
         await interaction.followup.send(embed=embed)
 
 @app_commands.checks.has_permissions(administrator=True)
