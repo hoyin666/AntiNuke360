@@ -118,6 +118,12 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對�
 - 頻道設定為僅機器人可發送訊息
 - 包含功能介紹、使用指南、防護參數和聯絡信息
 
+### Administrator 權限檢查 (v1.2.1 新增)
+
+- 加入伺服器後自動檢查是否具有 Administrator 權限
+- 若無權限，通知擁有者和管理員後自動離開
+- 確保機器人具備完整的防護能力
+
 ## 管理員指令
 
 ### /status
@@ -246,9 +252,9 @@ python-dotenv
    ```
    pip install -r requirements.txt
    ```
-4. 執行機器人 (v1.2)：
+4. 執行機器人 (v1.2.1)：
    ```
-   python AntiNuke360_v1.2.py
+   python AntiNuke360_v1.2.1.py
    ```
 
 ### Discord Bot 設置
@@ -258,13 +264,7 @@ python-dotenv
 3. 進入 "Bot" 部分並建立機器人
 4. 複製 Bot Token 到 .env 檔案
 5. 在 "OAuth2" > "URL Generator" 中設置權限：
-   - administrator (包含所有必要權限)
-   或者個別選擇：
-   - ban members
-   - kick members
-   - manage channels
-   - manage roles
-   - manage webhooks
+   - administrator
 6. 使用生成的 URL 將機器人加入伺服器
 
 ## 資料儲存
@@ -287,6 +287,7 @@ python-dotenv
 - 所有操作都記錄到指定頻道或通知管理員
 - 自動權限監控和錯誤處理
 - 所有敏感訊息使用 Discord Embed 形式發送
+- v1.2.1 新增 Administrator 權限檢查
 
 ## 開發者資訊
 
@@ -307,6 +308,14 @@ MIT License - 本軟體免費使用，可自由修改和發佈。
 如有任何問題或建議，請透過 GitHub Issue 回報或聯繫開發者。
 
 ## 更新日誌
+
+### v1.2.1 (2025年11月17日)
+- 新增 Administrator 權限檢查：加入伺服器後自動驗證權限
+- 若無 Administrator 權限，自動通知擁有者和管理員後離開
+- 優化權限錯誤處理邏輯
+- 改進快照建立過程中的錯誤恢復
+- 優化相關 URL 從 `/oauth2/` 改為 `/oauth2/`
+- 增強伺服器加入流程的穩定性
 
 ### v1.2 (2025年11月16日)
 - 修復 0day 漏洞：三層白名單系統防止管理員濫用
