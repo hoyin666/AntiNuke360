@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.2.1 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="description" content="AntiNuke360 v1.2.2 - 永久免費、永久開源的 Discord 伺服器防護機制">
     <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
-    <title>AntiNuke360 v1.2.1 - Discord 伺服器防護機制</title>
+    <title>AntiNuke360 v1.2.2 - Discord 伺服器防護機制</title>
     <style>
         * {
             margin: 0;
@@ -291,8 +291,8 @@
             background: #ef4444;
         }
 
-        .badge.stable {
-            background: #10b981;
+        .badge.hijack {
+            background: #f59e0b;
         }
 
         .button-group {
@@ -488,7 +488,7 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.2.1 - 穩定版 <span class="badge stable">Latest</span></div>
+        <div class="version">v1.2.2 - 最新版本</div>
         <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
     </header>
 
@@ -552,11 +552,11 @@
                     <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>伺服器快照系統<span class="badge">v1.1+</span></h3>
+                    <h3>伺服器快照系統</h3>
                     <p>自動建立伺服器結構快照，遭受攻擊後可完全還原。快照保留 72 小時。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>三層白名單系統<span class="badge security">v1.2 安全修復</span></h3>
+                    <h3>三層白名單系統</h3>
                     <p>防踢白名單、臨時白名單、永久白名單，區分管理員和擁有者權限，防止濫用。</p>
                 </div>
                 <div class="feature-card">
@@ -580,12 +580,20 @@
                     <p>新成員加入時自動檢查黑名單和白名單，將風險降到最低。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>記錄頻道系統<span class="badge">v1.2 新增</span></h3>
+                    <h3>記錄頻道系統</h3>
                     <p>管理員可設定記錄頻道，所有防護事件和白名單操作都會記錄。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>Administrator 檢查<span class="badge stable">v1.2.1 新增</span></h3>
-                    <p>自動檢查並確保具有完整權限，若無權限會通知管理員並自動離開。</p>
+                    <h3>Administrator 檢查<span class="badge">時時監控</span></h3>
+                    <p>加入時檢查權限，每小時定期驗證，確保持續完整權限。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>反被盜帳偵測<span class="badge hijack">v1.2.2</span></h3>
+                    <p>監控 5 秒內在不同頻道發送相同訊息的異常行為，自動踢出被盜帳號。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>黑名單訊息屏蔽<span class="badge hijack">v1.2.2</span></h3>
+                    <p>全域黑名單成員的訊息自動刪除，防止詐騙訊息傳播。</p>
                 </div>
             </div>
         </div>
@@ -611,8 +619,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.2.1)：
-                    <pre><code>python AntiNuke360_v1.2.1.py</code></pre>
+                <li>啟動機器人 (v1.2.2)：
+                    <pre><code>python AntiNuke360_v1.2.2.py</code></pre>
                 </li>
             </ol>
 
@@ -634,7 +642,7 @@
 
     <section id="commands">
         <div class="glass-panel">
-            <h2>指令</h2>
+            <h2>管理員指令</h2>
 
             <h3>/status</h3>
             <p>查看 AntiNuke360 的當前運行狀態、防護參數與統計。</p>
@@ -657,6 +665,9 @@
             <h3>/set-log-channel [#channel]</h3>
             <p>設置本伺服器的記錄頻道。所有防護事件都會記錄在此。需要管理員權限。</p>
 
+            <h3>/toggle-anti-hijack [on/off]<span class="badge hijack">v1.2.2</span></h3>
+            <p>開啟或關閉反被盜帳功能。預設啟用。需要管理員權限。</p>
+
             <h3 style="margin-top: 24px;">伺服器擁有者指令</h3>
 
             <h3>/add-server-anti-kick [ID]</h3>
@@ -670,29 +681,6 @@
 
             <h3>/remove-server-perm [ID]</h3>
             <p>從永久白名單移除機器人。</p>
-
-            <h3 style="margin-top: 24px;">開發者指令</h3>
-
-            <h3>/add-black [ID] [原因]</h3>
-            <p>將機器人加入全域黑名單。</p>
-
-            <h3>/remove-black [ID]</h3>
-            <p>從全域黑名單移除機器人。</p>
-
-            <h3>/add-white [ID] [原因]</h3>
-            <p>將機器人加入全域白名單。</p>
-
-            <h3>/remove-white [ID]</h3>
-            <p>從全域白名單移除機器人。</p>
-
-            <h3>/blacklist</h3>
-            <p>查看全域黑名單。</p>
-
-            <h3>/whitelist-list</h3>
-            <p>查看全域白名單。</p>
-
-            <h3>/scan-all-guilds</h3>
-            <p>在所有伺服器中掃描並停權黑名單成員。</p>
         </div>
     </section>
 
@@ -700,11 +688,17 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
-            <h3>v1.2.1 新增了什麼？</h3>
-            <p>v1.2.1 新增了自動 Administrator 權限檢查。當機器人加入伺服器時，會檢查是否具有完整的 Administrator 權限。如果沒有，會自動通知伺服器擁有者和管理員，然後自動離開伺服器。這確保了機器人能夠正常提供完整的防護和還原功能。</p>
+            <h3>v1.2.2 新增了什麼？</h3>
+            <p>v1.2.2 新增了反被盜帳偵測、黑名單訊息屏蔽，以及 <strong>每小時定期檢查 Administrator 權限</strong>的功能。反被盜帳偵測會監控 5 秒內在不同頻道發送相同訊息的異常行為，自動踢出被盜帳號並發送恢復邀請。</p>
 
-            <h3>機器人在我的伺服器中說無法運作怎麼辦？</h3>
-            <p>這通常表示機器人缺少 Administrator 權限。請確保在邀請機器人時已授予 Administrator 權限。v1.2.1 會自動檢查並通知您。</p>
+            <h3>權限檢查如何工作？</h3>
+            <p>機器人在加入伺服器時會立即檢查是否具有 Administrator 權限，之後每小時定期檢查一次。這確保了即使權限被移除，機器人也能立即發現並通知管理員，然後自動離開。這提供了持續的安全保障。</p>
+
+            <h3>反被盜帳功能如何工作？</h3>
+            <p>與其他 Bot 不同，AntiNuke360 不使用特定頻道偵測。而是監控 5 秒內在不同頻道發送相同訊息的行為，這是被盜帳號的真實特徵。這樣可以避免誤傷好奇用戶，提高精準度。</p>
+
+            <h3>可以關閉反被盜帳功能嗎？</h3>
+            <p>可以。使用 `/toggle-anti-hijack off` 指令關閉反被盜帳功能。預設是啟用的。</p>
 
             <h3>v1.2 修復了什麼 0day 漏洞？</h3>
             <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
@@ -736,13 +730,13 @@
                 <li>開發者 ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.2.1（2025 年 11 月）</li>
+                <li>目前版本：v1.2.2（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
 
     <footer>
-        AntiNuke360 v1.2.1 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.2.2 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
@@ -789,4 +783,4 @@
         });
     </script>
 </body>
-</html>
+        </html>
