@@ -23,6 +23,18 @@
             color: #f5f5f5;
             min-height: 100vh;
             background: url("index_bg.jpg") center center / cover fixed no-repeat;
+            animation: fadeIn 0.6s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         body::before {
@@ -371,6 +383,21 @@
             background: rgba(0, 0, 0, 0.3);
         }
 
+        .footer-links {
+            margin-bottom: 16px;
+        }
+
+        .footer-links a {
+            color: #888888;
+            text-decoration: none;
+            margin: 0 12px;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: #4f7dfa;
+        }
+
         @media (max-width: 768px) {
             .nav-toggle {
                 display: block;
@@ -420,6 +447,16 @@
                 width: 100%;
                 text-align: center;
             }
+
+            .footer-links {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .footer-links a {
+                margin: 0;
+            }
         }
 
         @media (max-width: 480px) {
@@ -461,6 +498,11 @@
             .badge {
                 margin-left: 4px;
                 margin-top: 4px;
+            }
+
+            .button {
+                padding: 8px 16px;
+                font-size: 12px;
             }
         }
 
@@ -588,7 +630,7 @@
                     <p>管理員可設定記錄頻道，所有防護事件和白名單操作都會記錄。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>Administrator 檢查<span class="badge">時刻監控</span></h3>
+                    <h3>Administrator 檢查<span class="badge">時時監控</span></h3>
                     <p>加入時檢查權限，每小時定期驗證，確保持續完整權限。</p>
                 </div>
                 <div class="feature-card">
@@ -604,6 +646,7 @@
             <h3 style="margin-top: 32px;">v1.2.3 核心改進</h3>
             <ul>
                 <li><strong>10 分鐘延遲檢查</strong> - 給予管理員充足時間配置身分組和權限</li>
+                <li><strong>避免身分組污染</strong> - 不會生成無法刪除的自動身分組</li>
                 <li><strong>改進使用體驗</strong> - 管理員可以自由配置權限而不擔心遺留身分組</li>
             </ul>
         </div>
@@ -711,7 +754,7 @@
             <p>與其他 Bot 不同，AntiNuke360 不使用特定頻道偵測。而是監控 5 秒內在不同頻道發送相同訊息的行為，這是被盜帳號的真實特徵。這樣可以避免誤傷好奇用戶，提高精準度。</p>
 
             <h3>可以關閉反被盜帳功能嗎？</h3>
-            <p>可以。使用 `/toggle-anti-hijack off` 指令關閉反被盜帳功能。預設是啟用的。（請注意，這開關在未來版本可能被移除）</p>
+            <p>可以。使用 `/toggle-anti-hijack off` 指令關閉反被盜帳功能。預設是啟用的。</p>
 
             <h3>v1.2 修復了什麼 0day 漏洞？</h3>
             <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
@@ -749,6 +792,11 @@
     </section>
 
     <footer>
+        <div class="footer-links">
+            <a href="Privacy_Policy.html">隱私政策</a>
+            <a href="Terms_of_Service.html">服務條款</a>
+            <a href="https://github.com/hoyin666/AntiNuke360">GitHub</a>
+        </div>
         AntiNuke360 v1.2.3 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
@@ -796,4 +844,4 @@
         });
     </script>
 </body>
-    </html>
+</html>
