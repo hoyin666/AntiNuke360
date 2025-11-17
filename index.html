@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.2 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="description" content="AntiNuke360 v1.2.1 - 永久免費、永久開源的 Discord 伺服器防護機制">
     <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
-    <title>AntiNuke360 v1.2 - Discord 伺服器防護機制</title>
+    <title>AntiNuke360 v1.2.1 - Discord 伺服器防護機制</title>
     <style>
         * {
             margin: 0;
@@ -291,6 +291,10 @@
             background: #ef4444;
         }
 
+        .badge.stable {
+            background: #10b981;
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -484,7 +488,7 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.2 - 安全強化版</div>
+        <div class="version">v1.2.1 - 穩定版 <span class="badge stable">Latest</span></div>
         <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
     </header>
 
@@ -580,8 +584,8 @@
                     <p>管理員可設定記錄頻道，所有防護事件和白名單操作都會記錄。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>自訂狀態文字</h3>
-                    <p>內建 24 條狀態文字，機器人會自動輪替顯示，提高可見度與辨識度。</p>
+                    <h3>Administrator 檢查<span class="badge stable">v1.2.1 新增</span></h3>
+                    <p>自動檢查並確保具有完整權限，若無權限會通知管理員並自動離開。</p>
                 </div>
             </div>
         </div>
@@ -607,8 +611,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.2)：
-                    <pre><code>python AntiNuke360_v1.2.py</code></pre>
+                <li>啟動機器人 (v1.2.1)：
+                    <pre><code>python AntiNuke360_v1.2.1.py</code></pre>
                 </li>
             </ol>
 
@@ -623,7 +627,7 @@
 
             <div class="button-group">
                 <a href="https://github.com/hoyin666/AntiNuke360" class="button">GitHub 倉庫</a>
-                <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">機器人列表</a>
+                <a href="https://top.gg/bot/1438774167804842078" class="button secondary">Top.gg 頁面</a>
             </div>
         </div>
     </section>
@@ -696,11 +700,14 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
+            <h3>v1.2.1 新增了什麼？</h3>
+            <p>v1.2.1 新增了自動 Administrator 權限檢查。當機器人加入伺服器時，會檢查是否具有完整的 Administrator 權限。如果沒有，會自動通知伺服器擁有者和管理員，然後自動離開伺服器。這確保了機器人能夠正常提供完整的防護和還原功能。</p>
+
+            <h3>機器人在我的伺服器中說無法運作怎麼辦？</h3>
+            <p>這通常表示機器人缺少 Administrator 權限。請確保在邀請機器人時已授予 Administrator 權限。v1.2.1 會自動檢查並通知您。</p>
+
             <h3>v1.2 修復了什麼 0day 漏洞？</h3>
             <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
-
-            <h3>三層白名單系統有什麼區別？</h3>
-            <p>防踢白名單由伺服器擁有者管理，允許全域黑名單帳號加入但記錄監控。臨時白名單由管理員管理，1 小時自動過期。永久白名單由伺服器擁有者管理，對所有操作完全豁免。</p>
 
             <h3>快照會保留多久？</h3>
             <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照會自動清理。</p>
@@ -710,9 +717,6 @@
 
             <h3>可以修改並重新發佈 AntiNuke360 嗎？</h3>
             <p>可以。本專案採用 MIT License，只要保留原始許可聲明即可。</p>
-
-            <h3>機器人需要哪些權限？</h3>
-            <p>建議給予 administrator 權限。若不方便，至少需要 ban members、kick members、manage channels、manage roles、manage webhooks。</p>
         </div>
     </section>
 
@@ -724,7 +728,7 @@
 
             <div class="button-group">
                 <a href="https://github.com/hoyin666/AntiNuke360" class="button">前往 GitHub</a>
-                <a href="https://dctw.xyz/bots/1438774167804842078" class="button secondary">查看機器人頁面</a>
+                <a href="https://top.gg/bot/1438774167804842078" class="button secondary">Top.gg 頁面</a>
             </div>
 
             <h3 style="margin-top: 28px;">專案資訊</h3>
@@ -732,13 +736,13 @@
                 <li>開發者 ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.2（2025 年 11 月）</li>
+                <li>目前版本：v1.2.1（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
 
     <footer>
-        AntiNuke360 v1.2 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.2.1 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
