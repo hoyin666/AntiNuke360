@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.2.2 - 永久免費、永久開源的 Discord 伺服器防護機制">
+    <meta name="description" content="AntiNuke360 v1.2.3 - 永久免費、永久開源的 Discord 伺服器防護機制">
     <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
-    <title>AntiNuke360 v1.2.2 - Discord 伺服器防護機制</title>
+    <title>AntiNuke360 v1.2.3 - Discord 伺服器防護機制</title>
     <style>
         * {
             margin: 0;
@@ -295,6 +295,10 @@
             background: #f59e0b;
         }
 
+        .badge.new {
+            background: #10b981;
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -488,7 +492,7 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.2.2 - 最新版本</div>
+        <div class="version">v1.2.3 - 最新版本</div>
         <p>永久免費、永久開源的 Discord 伺服器防護機制</p>
     </header>
 
@@ -584,18 +588,24 @@
                     <p>管理員可設定記錄頻道，所有防護事件和白名單操作都會記錄。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>Administrator 檢查<span class="badge">時時監控</span></h3>
+                    <h3>Administrator 檢查<span class="badge">時刻監控</span></h3>
                     <p>加入時檢查權限，每小時定期驗證，確保持續完整權限。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>延遲初始化<span class="badge new">v1.2.3</span></h3>
+                    <p>加入伺服器 10 分鐘後才檢查權限，避免無法刪除的身分組污染。</p>
                 </div>
                 <div class="feature-card">
                     <h3>反被盜帳偵測<span class="badge hijack">v1.2.2</span></h3>
                     <p>監控 5 秒內在不同頻道發送相同訊息的異常行為，自動踢出被盜帳號。</p>
                 </div>
-                <div class="feature-card">
-                    <h3>黑名單訊息屏蔽<span class="badge hijack">v1.2.2</span></h3>
-                    <p>全域黑名單成員的訊息自動刪除，防止詐騙訊息傳播。</p>
-                </div>
             </div>
+
+            <h3 style="margin-top: 32px;">v1.2.3 核心改進</h3>
+            <ul>
+                <li><strong>10 分鐘延遲檢查</strong> - 給予管理員充足時間配置身分組和權限</li>
+                <li><strong>改進使用體驗</strong> - 管理員可以自由配置權限而不擔心遺留身分組</li>
+            </ul>
         </div>
     </section>
 
@@ -619,8 +629,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.2.2)：
-                    <pre><code>python AntiNuke360_v1.2.2.py</code></pre>
+                <li>啟動機器人 (v1.2.3)：
+                    <pre><code>python AntiNuke360_v1.2.3.py</code></pre>
                 </li>
             </ol>
 
@@ -665,7 +675,7 @@
             <h3>/set-log-channel [#channel]</h3>
             <p>設置本伺服器的記錄頻道。所有防護事件都會記錄在此。需要管理員權限。</p>
 
-            <h3>/toggle-anti-hijack [on/off]<span class="badge hijack">v1.2.2</span></h3>
+            <h3>/toggle-anti-hijack [on/off]</h3>
             <p>開啟或關閉反被盜帳功能。預設啟用。需要管理員權限。</p>
 
             <h3 style="margin-top: 24px;">伺服器擁有者指令</h3>
@@ -688,17 +698,20 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
-            <h3>v1.2.2 新增了什麼？</h3>
-            <p>v1.2.2 新增了反被盜帳偵測、黑名單訊息屏蔽，以及 <strong>每小時定期檢查 Administrator 權限</strong>的功能。反被盜帳偵測會監控 5 秒內在不同頻道發送相同訊息的異常行為，自動踢出被盜帳號並發送恢復邀請。</p>
+            <h3>v1.2.3 新增了什麼？</h3>
+            <p>v1.2.3 新增了 <strong>10 分鐘延遲初始化機制</strong>。機器人不再加入伺服器後立即檢查權限，而是等待 10 分鐘後才檢查。這給予管理員充足時間來配置身分組和權限，避免生成無法刪除的自動身分組。</p>
 
-            <h3>權限檢查如何工作？</h3>
-            <p>機器人在加入伺服器時會立即檢查是否具有 Administrator 權限，之後每小時定期檢查一次。這確保了即使權限被移除，機器人也能立即發現並通知管理員，然後自動離開。這提供了持續的安全保障。</p>
+            <h3>為什麼要延遲 10 分鐘檢查？</h3>
+            <p>因為有些管理員為了方便整理身份組，會在加入伺服器前拔掉所有權限，隨後再為機器人增加有Administrator權限的身份組。若加入時不拔掉所有權限，機器人身分組就會無法刪除。10 分鐘延遲給予管理員時間來手動配置所需的身分組，讓機器人身分組不需要自動創建。</p>
+
+            <h3>延遲期間發生攻擊怎麼辦？</h3>
+            <p>這取決於有沒有正確設置權限。即使在延遲期間，只要在攻擊發生前正確設置了權限，伺服器仍可受保護。</p>
 
             <h3>反被盜帳功能如何工作？</h3>
             <p>與其他 Bot 不同，AntiNuke360 不使用特定頻道偵測。而是監控 5 秒內在不同頻道發送相同訊息的行為，這是被盜帳號的真實特徵。這樣可以避免誤傷好奇用戶，提高精準度。</p>
 
             <h3>可以關閉反被盜帳功能嗎？</h3>
-            <p>可以。使用 `/toggle-anti-hijack off` 指令關閉反被盜帳功能。預設是啟用的。</p>
+            <p>可以。使用 `/toggle-anti-hijack off` 指令關閉反被盜帳功能。預設是啟用的。（請注意，這開關在未來版本可能被移除）</p>
 
             <h3>v1.2 修復了什麼 0day 漏洞？</h3>
             <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
@@ -730,13 +743,13 @@
                 <li>開發者 ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.2.2（2025 年 11 月）</li>
+                <li>目前版本：v1.2.3（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
 
     <footer>
-        AntiNuke360 v1.2.2 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.2.3 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
@@ -783,4 +796,4 @@
         });
     </script>
 </body>
-        </html>
+    </html>
