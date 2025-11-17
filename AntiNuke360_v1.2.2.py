@@ -18,7 +18,7 @@ SERVER_WHITELIST_FILE = "server_whitelist.json"
 GUILDS_FILE = "guilds_data.json"
 SNAPSHOT_DIR = Path("snapshots")
 SNAPSHOT_TTL_SECONDS = 72 * 3600  # 72 hours
-VERSION = "v1.2.1"  # 更新版本號
+VERSION = "v1.2.2"  # 更新版本號
 
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
@@ -40,6 +40,17 @@ permission_errors = defaultdict(deque)
 
 # 防止短時間內重複詢問還原
 restore_prompted = defaultdict(lambda: 0)
+
+# === 新增：反外部應用程式刷屏 & 反被盜帳設定 ===
+# guild_id -> {"enabled": bool, "timeout": int}
+external_spam_settings = defaultdict(lambda: {"enabled": True, "timeout": 900})
+# guild_id -> {"enabled": bool}
+anti_hijack_settings = defaultdict(lambda: {"enabled": True})
+
+# 反外部應用程式刷屏偵測用：guild_id -> user_id -> content -> deque[timestamps]
+external_spam_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(deque)))
+# 反被盜帳偵測用：guild_id -> user_id -> content -> deque[(timestamp, channel_id)]
+hijack_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(deque)))
 
 # 固定防護參數
 PROTECTION_CONFIG = {
@@ -734,7 +745,7 @@ async def check_permission_errors(guild):
 - 檢視審核日誌 (View Audit Log)
 
 權限不足會導致無法正常防護伺服器，Bot 將自動離開此伺服器。"""
-            embed.set_footer(text="AntiNuke360 v1.2.1")
+            embed.set_footer(text="AntiNuke360 v1.2.2")
             try:
                 await send_log(guild, embed=embed)
                 print(f"[PERMISSION] 已向伺服器所有者/記錄頻道發送通知")
@@ -995,7 +1006,12 @@ async def send_welcome_message(guild):
 
 固定防護參數
 - 最優的靈敏度設置
-- 無法調整(確保一致性)""",
+- 無法調整(確保一致性)
+
+進階保護 (v1.2.2)
+- 黑名單訊息即時屏蔽（非防踢白名單）
+- 反外部應用程式刷屏（5 秒內 3 則相同訊息，支援禁言設定）
+- 反被盜帳（5 秒內在不同頻道發送 3 次相同訊息，DM 邀請 + 踢出/只刪訊息）""",
             inline=False
         )
         
@@ -1006,6 +1022,8 @@ async def send_welcome_message(guild):
 /add-server-temp [ID] - 將成員或機器人加入本伺服器臨時白名單 (管理員，可移除)
 /remove-server-temp [ID]
 /set-log-channel [#channel] - 指定記錄頻道 (管理員)
+/set-external-spam [秒數] - 設定反外部應用程式刷屏禁言秒數 (0 只刪訊息+通知，最大 1209600 秒)
+/toggle-anti-hijack [on/off] - 開啟或關閉反被盜帳功能 (管理員)
 
 伺服器擁有者指令:
 /add-server-anti-kick [ID] - 防踢白名單 (僅擁有者)
@@ -1043,7 +1061,7 @@ async def send_welcome_message(guild):
             inline=False
         )
         
-        embed.set_footer(text="AntiNuke360 v1.2.1 | 伺服器防護專家")
+        embed.set_footer(text="AntiNuke360 v1.2.2 | 伺服器防護專家")
         
         await channel.send(embed=embed)
         print(f"[WELCOME] 已在伺服器 {guild.name} 創建歡迎頻道")
@@ -1203,23 +1221,219 @@ async def on_webhook_update(channel):
     except Exception:
         pass
 
+# === 新增：偵測反外部應用程式刷屏 & 反被盜帳的輔助函式 ===
+
+async def handle_external_spam(message: discord.Message, settings):
+    """反外部應用程式刷屏：5 秒內同一頻道 3 則相同訊息"""
+    guild = message.guild
+    user = message.author
+    gid = guild.id
+    uid = user.id
+    content = message.content
+
+    if not settings["enabled"]:
+        return
+
+    if is_permanent_whitelisted(gid, uid):
+        return
+
+    if not content:
+        return
+
+    # 僅在相同頻道內計數：使用 (channel_id, content) 作為鍵
+    content_key = (message.channel.id, content)
+    dq = external_spam_tracker[gid][uid][content_key]
+    now = time.time()
+    dq.append(now)
+    while dq and now - dq[0] > 5:
+        dq.popleft()
+
+    if len(dq) >= 3:
+        # 刪除刷屏訊息
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        # 通知 log
+        embed = discord.Embed(title="[AntiNuke360 - 外部應用程式刷屏偵測]", color=discord.Color.orange())
+        embed.description = (
+            f"使用者 `{user}` (ID: `{uid}`) 在 5 秒內多次發送相同訊息，疑似使用外部應用程式刷屏。\n\n"
+            f"頻道: {message.channel.mention}\n"
+            f"內容: ```{content[:1500]}```"
+        )
+        embed.set_footer(text="AntiNuke360 v1.2.2")
+        try:
+            await send_log(guild, embed=embed)
+        except Exception:
+            pass
+
+        timeout_seconds = settings["timeout"]
+        if timeout_seconds <= 0:
+            print(f"[EXTERNAL SPAM] 偵測到刷屏，但設定為不禁言 (僅刪除訊息與通知)")
+            return
+
+        timeout_seconds = max(0, min(1209600, timeout_seconds))
+        try:
+            duration = discord.utils.utcnow() + discord.utils.timedelta(seconds=timeout_seconds)
+        except AttributeError:
+            # 兼容舊版本 discord.py，如果沒有 utils.timedelta
+            from datetime import timedelta, datetime, timezone
+            duration = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
+
+        try:
+            await user.timeout(duration, reason="AntiNuke360: 疑似使用外部應用程式刷屏")
+            print(f"[EXTERNAL SPAM] 已對 {user} 進行禁言 {timeout_seconds} 秒")
+        except Exception as e:
+            print(f"[EXTERNAL SPAM] 無法對 {user} 進行禁言: {e}")
+
+async def handle_anti_hijack(message: discord.Message):
+    """反被盜帳：5 秒內在不同頻道發送 3 次相同訊息"""
+    guild = message.guild
+    user = message.author
+    gid = guild.id
+    uid = user.id
+    content = message.content
+
+    if not anti_hijack_settings[gid]["enabled"]:
+        return
+
+    if is_permanent_whitelisted(gid, uid):
+        # 永久白名單只刪除詐騙訊息，但不踢出
+        mode = "whitelisted"
+    else:
+        mode = "normal"
+
+    if not content:
+        return
+
+    dq = hijack_tracker[gid][uid][content]
+    now = time.time()
+    dq.append((now, message.channel.id))
+    # 保留 5 秒窗口
+    filtered = [(ts, cid) for (ts, cid) in dq if now - ts <= 5]
+    hijack_tracker[gid][uid][content] = deque(filtered)
+    channels = {cid for _, cid in filtered}
+
+    if len(filtered) >= 3 and len(channels) >= 3:
+        # 刪除當前訊息
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        # 尋找所有有 AntiNuke360 的伺服器與成員在其中的伺服器
+        mutual_guilds = [g for g in bot.guilds if g.get_member(uid)]
+
+        # 為每個伺服器創建 7 天邀請連結
+        invite_links = []
+        for g in mutual_guilds:
+            # 找可以建立邀請的文字頻道
+            target_channel = g.system_channel
+            if not target_channel:
+                for ch in g.text_channels:
+                    if ch.permissions_for(g.me).create_instant_invite:
+                        target_channel = ch
+                        break
+            if not target_channel:
+                continue
+            try:
+                invite = await target_channel.create_invite(max_age=7 * 24 * 3600, max_uses=1, reason="AntiNuke360: 被盜帳回復用邀請")
+                invite_links.append((g.name, str(invite)))
+            except Exception as e:
+                print(f"[ANTI HIJACK] 無法在伺服器 {g.name} 建立邀請: {e}")
+                continue
+
+        # DM 被盜帳號
+        dm_text_lines = [
+            "您好，這裡是 AntiNuke360。",
+            "",
+            "我們偵測到您的帳號在短時間內於多個頻道發送相同訊息，疑似 **被盜帳號或被利用發送詐騙訊息**。",
+            "為了保護伺服器安全，您的帳號已被從相關伺服器中踢出或暫時限制。",
+        ]
+        if invite_links:
+            dm_text_lines.append("")
+            dm_text_lines.append("以下是您曾加入、並安裝 AntiNuke360 的伺服器 7 天一次性邀請連結：")
+            for name, link in invite_links:
+                dm_text_lines.append(f"- {name}: {link}")
+            dm_text_lines.append("")
+            dm_text_lines.append("請在完成安全檢查、更改密碼與二階段驗證後，再透過上述連結重新加入伺服器。")
+        else:
+            dm_text_lines.append("")
+            dm_text_lines.append("目前無法自動為您建立回到各伺服器的邀請連結，請自行聯繫伺服器管理員協助。")
+
+        try:
+            dm = await user.create_dm()
+            await dm.send("\n".join(dm_text_lines))
+        except Exception as e:
+            print(f"[ANTI HIJACK] 無法 DM 使用者 {user}: {e}")
+
+        # log 到當前伺服器
+        embed = discord.Embed(title="[AntiNuke360 - 反被盜帳偵測]", color=discord.Color.red())
+        embed.description = (
+            f"使用者 `{user}` (ID: `{uid}`) 在 5 秒內於多個頻道發送相同訊息，疑似被盜帳號或發送詐騙訊息。\n\n"
+            f"本頻道: {message.channel.mention}\n"
+            f"訊息內容: ```{content[:1500]}```"
+        )
+        embed.set_footer(text="AntiNuke360 v1.2.2")
+        try:
+            await send_log(guild, embed=embed)
+        except Exception:
+            pass
+
+        if mode == "whitelisted":
+            print(f"[ANTI HIJACK] {user} 為永久白名單，僅刪除訊息與通知。")
+            return
+
+        # 踢出被盜帳號（在所有 mutual_guilds 中）
+        for g in mutual_guilds:
+            member = g.get_member(uid)
+            if not member:
+                continue
+            try:
+                await g.kick(member, reason="AntiNuke360: 疑似被盜帳號 / 詐騙訊息")
+                print(f"[ANTI HIJACK] 已從伺服器 {g.name} 踢出 {member}")
+            except Exception as e:
+                print(f"[ANTI HIJACK] 無法從伺服器 {g.name} 踢出 {member}: {e}")
+
 @bot.event
 async def on_message(message):
-    if message.author.bot or not message.guild:
+    if not message.guild:
         return
-    
+
     guild = message.guild
-    user_id_str = str(message.author.id)
-    
+    user = message.author
+    gid = guild.id
+    uid = user.id
+    user_id_str = str(uid)
+
+    # 黑名單訊息屏蔽（先處理，包含機器人）
+    if user_id_str in bot_blacklist and not is_anti_kick_whitelisted(gid, uid):
+        try:
+            await message.delete()
+            print(f"[BLACKLIST MSG] 已刪除黑名單成員 {user} 的訊息")
+        except Exception as e:
+            print(f"[BLACKLIST MSG] 刪除黑名單訊息失敗: {e}")
+        return
+
+    if user.bot:
+        return
+
+    # 外部應用程式刷屏偵測
+    await handle_external_spam(message, external_spam_settings[gid])
+
+    # 反被盜帳偵測
+    await handle_anti_hijack(message)
+
     if user_id_str in bot_blacklist or user_id_str in bot_whitelist:
         return
-    
-    if is_permanent_whitelisted(guild.id, message.author.id):
+
+    if is_permanent_whitelisted(guild.id, user.id):
         return
-    
-    if await track_action(guild, message.author, "message_send"):
+
+    if await track_action(guild, user, "message_send"):
         asyncio.create_task(prompt_restore_on_suspect(guild))
-        await take_action(guild, message.author, "行為異常短時間內大量發送訊息")
+        await take_action(guild, user, "行為異常短時間內大量發送訊息")
     
     await bot.process_commands(message)
 
@@ -1360,6 +1574,11 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="伺服器永久白名單人數", value=str(perm_count), inline=False)
     has_snapshot = snapshot_is_valid(load_snapshot_file(interaction.guild.id))
     embed.add_field(name="伺服器快照", value=f"{'有有效快照' if has_snapshot else '無有效快照'}", inline=False)
+    # 新增進階保護設定狀態
+    ext_settings = external_spam_settings[gid]
+    hij_settings = anti_hijack_settings[gid]
+    embed.add_field(name="反外部應用程式刷屏", value=f"啟用 / 禁言 {ext_settings['timeout']} 秒" if ext_settings["enabled"] else "停用", inline=False)
+    embed.add_field(name="反被盜帳", value="啟用" if hij_settings["enabled"] else "停用", inline=False)
     embed.add_field(name="自訂狀態文字", value=f"已啟用 ({len(STATUS_MESSAGES)} 個，每 10 秒輪流)", inline=False)
     embed.set_footer(text=f"AntiNuke360 {VERSION} | 防護參數已固定")
     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1375,12 +1594,12 @@ async def scan_blacklist(interaction: discord.Interaction):
         embed.add_field(name="掃描人數", value=str(scan_count), inline=True)
         embed.add_field(name="停權人數", value=str(banned_count), inline=True)
         embed.add_field(name="伺服器", value=interaction.guild.name, inline=False)
-        embed.set_footer(text="AntiNuke360 v1.2.1")
+        embed.set_footer(text="AntiNuke360 v1.2.2")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="掃描失敗", color=discord.Color.red())
         embed.description = f"掃描伺服器時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2.1")
+        embed.set_footer(text="AntiNuke360 v1.2.2")
         await interaction.followup.send(embed=embed)
 
 # 臨時白名單 - 管理員可增刪
@@ -1495,7 +1714,7 @@ async def server_whitelist(interaction: discord.Interaction):
             lines.append(f"  {i+1}. `{bid}`")
     embed = discord.Embed(title="本伺服器白名單狀態", color=discord.Color.blue())
     embed.description = "\n".join(lines[:30])
-    embed.set_footer(text="AntiNuke360 v1.2.1")
+    embed.set_footer(text="AntiNuke360 v1.2.2")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="set-log-channel", description="設定本伺服器的記錄頻道 (管理員)")
@@ -1509,6 +1728,37 @@ async def set_log_channel(interaction: discord.Interaction, channel: discord.Tex
         return
     set_log_channel_for_guild(interaction.guild.id, channel.id)
     await interaction.response.send_message(f"已將 {channel.mention} 設為記錄頻道。", ephemeral=True)
+
+# === 新增：設定反外部應用程式刷屏禁言時間 ===
+@app_commands.checks.has_permissions(administrator=True)
+@bot.tree.command(name="set-external-spam", description="設定反外部應用程式刷屏禁言秒數 (管理員)")
+@app_commands.describe(timeout_seconds="禁言秒數 (0=不禁言, 1~1209600)")
+async def set_external_spam(interaction: discord.Interaction, timeout_seconds: int):
+    gid = interaction.guild.id
+    if timeout_seconds < 0 or timeout_seconds > 1209600:
+        await interaction.response.send_message("秒數需介於 0~1209600 之間。", ephemeral=True)
+        return
+    external_spam_settings[gid]["enabled"] = True
+    external_spam_settings[gid]["timeout"] = timeout_seconds
+    if timeout_seconds == 0:
+        msg = "已設定為只刪除刷屏訊息並通知 log，不會禁言。"
+    else:
+        msg = f"已設定為偵測到刷屏後禁言 {timeout_seconds} 秒。"
+    await interaction.response.send_message(msg, ephemeral=True)
+
+# === 新增：開關反被盜帳功能 ===
+@app_commands.checks.has_permissions(administrator=True)
+@bot.tree.command(name="toggle-anti-hijack", description="開啟或關閉反被盜帳功能 (管理員)")
+@app_commands.describe(mode="輸入 on 或 off")
+async def toggle_anti_hijack(interaction: discord.Interaction, mode: str):
+    gid = interaction.guild.id
+    mode_lower = mode.lower()
+    if mode_lower not in ("on", "off", "true", "false", "enable", "disable"):
+        await interaction.response.send_message("請輸入 `on` 或 `off`。", ephemeral=True)
+        return
+    enabled = mode_lower in ("on", "true", "enable")
+    anti_hijack_settings[gid]["enabled"] = enabled
+    await interaction.response.send_message(f"反被盜帳功能已{'啟用' if enabled else '關閉'}。", ephemeral=True)
 
 @bot.tree.command(name="add-black", description="將機器人加入全域黑名單 (開發者)")
 @app_commands.describe(bot_id="機器人 ID", reason="原因")
@@ -1526,7 +1776,7 @@ async def add_black(interaction: discord.Interaction, bot_id: str, reason: str =
     embed = discord.Embed(title="已加入黑名單", color=discord.Color.red())
     embed.description = f"機器人 ID: `{bot_id}` 已加入全域黑名單"
     embed.add_field(name="原因", value=reason if reason else "無", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.1")
+    embed.set_footer(text="AntiNuke360 v1.2.2")
     await interaction.followup.send(embed=embed)
     await scan_blacklist_all_guilds()
 
@@ -1594,7 +1844,7 @@ async def blacklist(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.1")
+    embed.set_footer(text="AntiNuke360 v1.2.2")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="whitelist-list", description="查看全域白名單 (開發者)")
@@ -1612,7 +1862,7 @@ async def whitelist_list(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.1")
+    embed.set_footer(text="AntiNuke360 v1.2.2")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="scan-all-guilds", description="在所有伺服器掃描並停權黑名單成員 (開發者)")
@@ -1625,12 +1875,12 @@ async def scan_all_guilds(interaction: discord.Interaction):
         await scan_blacklist_all_guilds()
         embed = discord.Embed(title="全域黑名單掃描完成", color=discord.Color.green())
         embed.description = "已在所有伺服器中掃描並停權黑名單成員"
-        embed.set_footer(text="AntiNuke360 v1.2.1")
+        embed.set_footer(text="AntiNuke360 v1.2.2")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="全域掃描失敗", color=discord.Color.red())
         embed.description = f"掃描時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2.1")
+        embed.set_footer(text="AntiNuke360 v1.2.2")
         await interaction.followup.send(embed=embed)
 
 @app_commands.checks.has_permissions(administrator=True)
