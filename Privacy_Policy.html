@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AntiNuke360 - 隱私政策">
+    <meta name="keywords" content="Discord, Bot, Privacy, Policy">
+    <title>隱私政策 - AntiNuke360</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #f5f5f5;
+            min-height: 100vh;
+            background: url("index_bg.jpg") center center / cover fixed no-repeat;
+            animation: fadeIn 0.6s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.25);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 60px 20px 40px;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.05) 100%);
+        }
+
+        header h1 {
+            font-size: clamp(28px, 6vw, 44px);
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        nav {
+            background: rgba(12, 12, 12, 0.75);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 56px;
+            flex-wrap: wrap;
+        }
+
+        .nav-brand {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .nav-links {
+            list-style: none;
+            display: flex;
+            gap: 0;
+        }
+
+        .nav-links a {
+            display: block;
+            padding: 16px 14px;
+            color: #f5f5f5;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: color 0.2s, background 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            border-bottom-color: #4f7dfa;
+        }
+
+        .nav-links a.active {
+            border-bottom-color: #4f7dfa;
+            color: #4f7dfa;
+        }
+
+        section {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 48px 16px;
+        }
+
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.58);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(18px);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+            padding: clamp(20px, 5vw, 32px);
+        }
+
+        h2 {
+            font-size: clamp(22px, 5vw, 28px);
+            margin-bottom: 16px;
+            margin-top: 32px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+            padding-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        h2:first-of-type {
+            margin-top: 0;
+        }
+
+        h3 {
+            font-size: clamp(16px, 4vw, 20px);
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #4f7dfa;
+        }
+
+        p {
+            font-size: clamp(14px, 2.5vw, 16px);
+            line-height: 1.8;
+            margin-bottom: 16px;
+            opacity: 0.95;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 12px;
+            font-size: clamp(14px, 2.5vw, 16px);
+            line-height: 1.8;
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.55);
+            padding: 3px 7px;
+            border-radius: 4px;
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #4f7dfa;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: background 0.2s, transform 0.1s;
+            margin-bottom: 32px;
+        }
+
+        .back-button:hover {
+            background: #365ed1;
+            transform: translateY(-1px);
+        }
+
+        footer {
+            text-align: center;
+            padding: 32px 16px;
+            font-size: 12px;
+            color: #888888;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: clamp(12px, 2vw, 14px);
+        }
+
+        table th, table td {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px;
+            text-align: left;
+        }
+
+        table th {
+            background: rgba(79, 125, 250, 0.1);
+            color: #4f7dfa;
+            font-weight: 600;
+        }
+
+        .highlight {
+            background: rgba(79, 125, 250, 0.2);
+            padding: 16px;
+            border-left: 4px solid #4f7dfa;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                padding: 40px 16px 30px;
+            }
+
+            header h1 {
+                font-size: 24px;
+            }
+
+            section {
+                padding: 32px 12px;
+            }
+
+            .nav-links {
+                width: 100%;
+                justify-content: flex-start;
+                overflow-x: auto;
+                gap: 0;
+                padding: 8px 0;
+            }
+
+            .nav-links a {
+                padding: 12px 12px;
+                font-size: 11px;
+                white-space: nowrap;
+            }
+
+            .glass-panel {
+                padding: 16px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            table th, table td {
+                padding: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 30px 12px 20px;
+            }
+
+            header h1 {
+                font-size: 20px;
+                margin-bottom: 8px;
+            }
+
+            section {
+                padding: 24px 10px;
+            }
+
+            h2 {
+                font-size: 18px;
+                margin-top: 24px;
+            }
+
+            h3 {
+                font-size: 15px;
+                margin-top: 16px;
+            }
+
+            p {
+                font-size: 14px;
+            }
+
+            li {
+                font-size: 14px;
+            }
+
+            .glass-panel {
+                padding: 12px;
+                border-radius: 12px;
+            }
+
+            table {
+                font-size: 11px;
+            }
+
+            table th, table td {
+                padding: 6px;
+            }
+
+            .back-button {
+                padding: 8px 16px;
+                font-size: 11px;
+                margin-bottom: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>隱私政策</h1>
+    </header>
+
+    <nav>
+        <div class="nav-inner">
+            <div class="nav-brand">AntiNuke360</div>
+            <ul class="nav-links">
+                <li><a href="index.html">首頁</a></li>
+                <li><a href="Privacy_Policy.html" class="active">隱私政策</a></li>
+                <li><a href="Terms_of_Service.html">服務條款</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section>
+        <div class="glass-panel">
+            <a href="index.html" class="back-button">← 返回首頁</a>
+
+            <h2>隱私政策</h2>
+            <p>最後更新：2025年11月18日</p>
+
+            <h3>1. 簡介</h3>
+            <p>AntiNuke360（以下簡稱「本機器人」）非常重視您的隱私。本隱私政策說明本機器人如何收集、使用、保護和披露您的信息。</p>
+
+            <h3>2. 我們收集的信息</h3>
+            <p>本機器人在運作過程中可能會收集以下信息：</p>
+            <ul>
+                <li><strong>伺服器 ID 和信息</strong>：用於識別和管理伺服器，以及儲存設定</li>
+                <li><strong>用戶 ID 和用戶名</strong>：用於黑名單和白名單管理</li>
+                <li><strong>訊息內容</strong>：僅用於反被盜帳偵測功能</li>
+                <li><strong>成員信息</strong>：用於安全掃描和驗證</li>
+                <li><strong>權限信息</strong>：用於權限檢查和防護</li>
+                <li><strong>操作日誌</strong>：記錄所有防護操作和管理員指令</li>
+            </ul>
+
+            <h3>3. 信息的使用</h3>
+            <p>我們使用收集的信息來：</p>
+            <ul>
+                <li>提供和改進反核打擊防護功能</li>
+                <li>維護和更新全域黑名單和白名單系統</li>
+                <li>執行伺服器安全掃描和偵測</li>
+                <li>發送重要安全警報和通知</li>
+                <li>調查和防止不當使用</li>
+                <li>遵守法律和監管要求</li>
+            </ul>
+
+            <h3>4. 反被盜帳偵測</h3>
+            <p>本機器人的反被盜帳偵測功能會讀取訊息內容以識別可疑的發送模式。具體來說：</p>
+            <ul>
+                <li>監控 5 秒內在不同頻道發送相同內容的行為</li>
+                <li>檢測到疑似被盜帳號時自動採取行動（刪除訊息和踢出用戶）</li>
+                <li>向被害人發送恢復邀請連結</li>
+                <li>訊息內容不會被儲存或用於其他目的</li>
+            </ul>
+
+            <h3>5. 信息安全</h3>
+            <p>我們採取適當的技術和組織措施來保護您的信息免受未經授權的訪問、修改、披露或破壞。然而，沒有傳輸方法可以 100% 安全。</p>
+
+            <h3>6. 信息保留</h3>
+            <p>我們會保留必要的信息以提供服務。快照數據保留 72 小時後自動刪除。操作日誌和黑名單信息會根據需要保留。</p>
+
+            <h3>7. 信息共享</h3>
+            <p>我們不會與第三方共享您的個人信息，除非：</p>
+            <ul>
+                <li>您明確同意</li>
+                <li>法律要求</li>
+                <li>保護本機器人或他人的權利、隱私或安全</li>
+            </ul>
+
+            <h3>8. 兒童隱私</h3>
+            <p>本機器人不有意收集 13 歲以下兒童的信息。如果我們發現我們收集了該年齡段兒童的信息，我們將立即刪除該信息。</p>
+
+            <h3>9. Discord 集成</h3>
+            <p>本機器人通過 Discord Bot API 運作。Discord 的數據實踐受其隱私政策約束。我們不控制 Discord 對信息的收集或使用。</p>
+
+            <h3>10. 隱私設置</h3>
+            <p>伺服器管理員可以：</p>
+            <ul>
+                <li>配置記錄頻道以控制日誌位置</li>
+                <li>使用 `/toggle-anti-hijack` 開啟或關閉反被盜帳功能</li>
+                <li>通過移除機器人的權限來完全停用本機器人</li>
+            </ul>
+
+            <h3>11. 隱私政策的更改</h3>
+            <p>我們可能會不時更新本隱私政策。我們會在本網頁上發佈任何重大變更。持續使用本機器人表示您同意更新後的隱私政策。</p>
+
+            <h3>12. 聯繫我們</h3>
+            <p>如果您對本隱私政策有任何疑問或關注，請通過以下方式聯繫我們：</p>
+            <ul>
+                <li>在 GitHub 上提交問題：https://github.com/hoyin666/AntiNuke360</li>
+                <li>通過 Discord 聯繫開發者</li>
+            </ul>
+
+            <div class="highlight">
+                <strong>重要提示：</strong>本隱私政策不是法律文件，而是對本機器人數據實踐的說明。由於本機器人是開源的，任何人都可以查看源代碼以了解確切的數據處理方式。
+            </div>
+
+            <h3>13. 開源透明度</h3>
+            <p>AntiNuke360 是完全開源的。我們的源代碼在 GitHub 上公開可用，允許任何人審查我們如何處理您的數據。這提供了最高級別的透明度。</p>
+
+            <h3>14. 數據所有權</h3>
+            <p>您保留您所有內容的所有權。我們只是為了提供服務而處理數據。您隨時可以要求刪除數據。</p>
+
+            <a href="index.html" class="back-button">← 返回首頁</a>
+        </div>
+    </section>
+
+    <footer>
+        AntiNuke360 · 隱私政策 · 永久免費、永久開源的 Discord 伺服器防護機制
+    </footer>
+</body>
+</html>

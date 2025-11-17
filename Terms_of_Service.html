@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AntiNuke360 - 服務條款">
+    <meta name="keywords" content="Discord, Bot, Terms, Service">
+    <title>服務條款 - AntiNuke360</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #f5f5f5;
+            min-height: 100vh;
+            background: url("index_bg.jpg") center center / cover fixed no-repeat;
+            animation: fadeIn 0.6s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.25);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 60px 20px 40px;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.05) 100%);
+        }
+
+        header h1 {
+            font-size: clamp(28px, 6vw, 44px);
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        nav {
+            background: rgba(12, 12, 12, 0.75);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 56px;
+            flex-wrap: wrap;
+        }
+
+        .nav-brand {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .nav-links {
+            list-style: none;
+            display: flex;
+            gap: 0;
+        }
+
+        .nav-links a {
+            display: block;
+            padding: 16px 14px;
+            color: #f5f5f5;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: color 0.2s, background 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            border-bottom-color: #4f7dfa;
+        }
+
+        .nav-links a.active {
+            border-bottom-color: #4f7dfa;
+            color: #4f7dfa;
+        }
+
+        section {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 48px 16px;
+        }
+
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.58);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(18px);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+            padding: clamp(20px, 5vw, 32px);
+        }
+
+        h2 {
+            font-size: clamp(22px, 5vw, 28px);
+            margin-bottom: 16px;
+            margin-top: 32px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+            padding-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        h2:first-of-type {
+            margin-top: 0;
+        }
+
+        h3 {
+            font-size: clamp(16px, 4vw, 20px);
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #4f7dfa;
+        }
+
+        p {
+            font-size: clamp(14px, 2.5vw, 16px);
+            line-height: 1.8;
+            margin-bottom: 16px;
+            opacity: 0.95;
+        }
+
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 12px;
+            font-size: clamp(14px, 2.5vw, 16px);
+            line-height: 1.8;
+        }
+
+        code {
+            background: rgba(0, 0, 0, 0.55);
+            padding: 3px 7px;
+            border-radius: 4px;
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #4f7dfa;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            transition: background 0.2s, transform 0.1s;
+            margin-bottom: 32px;
+        }
+
+        .back-button:hover {
+            background: #365ed1;
+            transform: translateY(-1px);
+        }
+
+        footer {
+            text-align: center;
+            padding: 32px 16px;
+            font-size: 12px;
+            color: #888888;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .highlight {
+            background: rgba(79, 125, 250, 0.2);
+            padding: 16px;
+            border-left: 4px solid #4f7dfa;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+
+        .warning {
+            background: rgba(239, 68, 68, 0.2);
+            padding: 16px;
+            border-left: 4px solid #ef4444;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                padding: 40px 16px 30px;
+            }
+
+            header h1 {
+                font-size: 24px;
+            }
+
+            section {
+                padding: 32px 12px;
+            }
+
+            .nav-links {
+                width: 100%;
+                justify-content: flex-start;
+                overflow-x: auto;
+                gap: 0;
+                padding: 8px 0;
+            }
+
+            .nav-links a {
+                padding: 12px 12px;
+                font-size: 11px;
+                white-space: nowrap;
+            }
+
+            .glass-panel {
+                padding: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 30px 12px 20px;
+            }
+
+            header h1 {
+                font-size: 20px;
+                margin-bottom: 8px;
+            }
+
+            section {
+                padding: 24px 10px;
+            }
+
+            h2 {
+                font-size: 18px;
+                margin-top: 24px;
+            }
+
+            h3 {
+                font-size: 15px;
+                margin-top: 16px;
+            }
+
+            p {
+                font-size: 14px;
+            }
+
+            li {
+                font-size: 14px;
+            }
+
+            .glass-panel {
+                padding: 12px;
+                border-radius: 12px;
+            }
+
+            .back-button {
+                padding: 8px 16px;
+                font-size: 11px;
+                margin-bottom: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>服務條款</h1>
+    </header>
+
+    <nav>
+        <div class="nav-inner">
+            <div class="nav-brand">AntiNuke360</div>
+            <ul class="nav-links">
+                <li><a href="index.html">首頁</a></li>
+                <li><a href="Privacy_Policy.html">隱私政策</a></li>
+                <li><a href="Terms_of_Service.html" class="active">服務條款</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section>
+        <div class="glass-panel">
+            <a href="index.html" class="back-button">← 返回首頁</a>
+
+            <h2>服務條款</h2>
+            <p>最後更新：2025年11月18日</p>
+
+            <h3>1. 接受條款</h3>
+            <p>通過邀請並使用 AntiNuke360 機器人（以下簡稱「本服務」或「本機器人」），您同意受本服務條款的約束。如果您不同意這些條款，請不要使用本服務。</p>
+
+            <h3>2. 服務描述</h3>
+            <p>AntiNuke360 是一個 Discord 機器人，提供以下功能：</p>
+            <ul>
+                <li>實時反核打擊 (Nuke) 防護</li>
+                <li>伺服器快照和還原功能</li>
+                <li>全域黑名單和白名單系統</li>
+                <li>反被盜帳號偵測和防禦</li>
+                <li>權限監控和管理</li>
+                <li>安全掃描和警報</li>
+            </ul>
+
+            <h3>3. 使用許可</h3>
+            <p>我們向您授予個人、非商業、不可轉讓、有限的許可來使用本服務。您可以：</p>
+            <ul>
+                <li>在您擁有或管理的 Discord 伺服器中使用本機器人</li>
+                <li>配置本機器人以滿足您的安全需求</li>
+                <li>查看本機器人生成的日誌和報告</li>
+                <li>訪問本機器人的開源代碼</li>
+            </ul>
+
+            <h3>4. 使用限制</h3>
+            <p>您不得：</p>
+            <ul>
+                <li>將本機器人用於任何非法活動</li>
+                <li>試圖破壞、黑客或繞過本機器人的安全功能</li>
+                <li>修改本機器人以使其具有惡意功能</li>
+                <li>使用本機器人來騷擾、冒充或傷害他人</li>
+                <li>嘗試提取本機器人的私鑰或敏感信息</li>
+                <li>在未經許可的情況下分發修改版本</li>
+                <li>使用本機器人進行任何違反 Discord 服務條款的活動</li>
+            </ul>
+
+            <h3>5. 免責聲明</h3>
+            <div class="warning">
+                <strong>重要：</strong>本服務按「原樣」提供，不提供任何保證。我們不保證：
+            </div>
+            <ul>
+                <li>本機器人將 100% 防止所有核打擊攻擊</li>
+                <li>本機器人不會中斷或無錯誤</li>
+                <li>本機器人不會遭受黑客攻擊或未經授權的訪問</li>
+                <li>快照恢復將完全恢復您的伺服器</li>
+                <li>所有管理功能在所有情況下都有效</li>
+            </ul>
+
+            <h3>6. 責任限制</h3>
+            <p>在任何情況下，開發者對以下情況不承擔責任：</p>
+            <ul>
+                <li>您伺服器受到的任何數據丟失或損壞</li>
+                <li>因使用或無法使用本服務而產生的任何間接或後續損失</li>
+                <li>因第三方行為造成的任何損害</li>
+                <li>本機器人未能阻止特定類型的攻擊</li>
+            </ul>
+
+            <h3>7. Discord 服務條款</h3>
+            <p>本機器人的使用受 Discord 服務條款的約束。如果本條款與 Discord 的條款衝突，Discord 的條款優先。您同意不做任何違反 Discord 服務條款或社區指南的事情。</p>
+
+            <h3>8. 開源許可</h3>
+            <p>本機器人的源代碼在 MIT 許可下發佈。這意味著：</p>
+            <ul>
+                <li>您可以自由修改和分發代碼</li>
+                <li>您必須保留原始許可聲明</li>
+                <li>開發者不對您的修改負責</li>
+                <li>代碼「按原樣」提供，不提供任何保證</li>
+            </ul>
+
+            <h3>9. 服務中斷</h3>
+            <p>我們可能會不時中斷、暫停或終止本服務，或其任何部分，包括：</p>
+            <ul>
+                <li>維護和升級</li>
+                <li>技術困難</li>
+                <li>安全問題</li>
+                <li>法律或監管要求</li>
+                <li>違反本條款</li>
+            </ul>
+
+            <h3>10. 賠償</h3>
+            <p>您同意保護和賠償開發者及其關聯方免受因以下原因導致的任何索賠、損失或費用：</p>
+            <ul>
+                <li>您對本服務的使用</li>
+                <li>您違反本條款</li>
+                <li>您違反任何法律或第三方權利</li>
+                <li>您的內容或數據</li>
+            </ul>
+
+            <h3>11. 隱私和數據保護</h3>
+            <p>您的數據按照本隱私政策進行保護。請閱讀我們的隱私政策以了解我們如何收集、使用和保護您的信息。</p>
+
+            <h3>12. 第三方服務</h3>
+            <p>本機器人依賴於 Discord API 和其他第三方服務。我們不對這些服務的可用性或可靠性負責。</p>
+
+            <h3>13. 可接受的使用政策</h3>
+            <p>您同意不使用本機器人：</p>
+            <ul>
+                <li>進行任何非法活動</li>
+                <li>騷擾、威脅或傷害他人</li>
+                <li>傳播惡意軟件或有害內容</li>
+                <li>試圖獲得未授權的訪問權限</li>
+                <li>進行釣魚或社會工程攻擊</li>
+                <li>侵犯任何知識產權</li>
+            </ul>
+
+            <h3>14. 修改條款</h3>
+            <p>我們可能會不時修改這些條款。我們會在本網頁上發佈任何重大變更。持續使用本服務表示您同意修改後的條款。</p>
+
+            <h3>15. 終止</h3>
+            <p>我們保留終止您對本服務的訪問權的權利，如果：</p>
+            <ul>
+                <li>您違反本條款</li>
+                <li>您使用本服務進行違法活動</li>
+                <li>您試圖破壞或黑客本機器人</li>
+                <li>我們被迫根據法律要求</li>
+            </ul>
+
+            <h3>16. 管轄法律</h3>
+            <p>本條款受相關司法管轄區的法律管轄。</p>
+
+            <h3>17. 聯繫信息</h3>
+            <p>如果您對這些條款有任何疑問或關注，請通過以下方式聯繫我們：</p>
+            <ul>
+                <li>GitHub：https://github.com/hoyin666/AntiNuke360</li>
+                <li>Discord：通過 Discord 聯繫開發者</li>
+            </ul>
+
+            <div class="highlight">
+                <strong>承認：</strong>通過使用 AntiNuke360，您承認您已閱讀、理解並同意受本服務條款的約束。
+            </div>
+
+            <a href="index.html" class="back-button">← 返回首頁</a>
+        </div>
+    </section>
+
+    <footer>
+        AntiNuke360 · 服務條款 · 永久免費、永久開源的 Discord 伺服器防護機制
+    </footer>
+</body>
+</html>
