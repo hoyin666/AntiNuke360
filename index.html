@@ -3,26 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.2.3 - 高效反制Nuke機器人+被盜帳號">
+    <meta name="description" content="AntiNuke360 v1.2.4 - 高效反制Nuke機器人+被盜帳號">
     <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
     
     <!-- Open Graph Meta Tags for Link Preview -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="AntiNuke360 v1.2.3 - 你的反核+反盜帳助手">
-    <meta property="og:description" content="永久免費、永久開源的 Discord高效反Nuke機器人">
-    <meta property="og:image" content="index_LinkPreviewImage.jpg">
+    <meta property="og:title" content="AntiNuke360 v1.2.4 - 你的反核+反盜帳助手">
+    <meta property="og:description" content="永久免費、永久開源的 Discord 高效反Nuke機器人">
+    <!-- 建議改為「完整 HTTPS 絕對路徑」，確保 Discord 能抓到預覽圖片 -->
+    <!-- 將 example.com 換成你實際的網域 -->
+    <meta property="og:image" content="https://image.starfall.dpdns.org/file/AgACAgUAAyEGAASsg8WbAAMgaRyi-oBcc9HT_Zqy9Zr87ektpK4AAkcMaxtOp-BU5vPpEe4AAWXcAQADAgADdwADNgQ.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:url" content="">
+    <!-- 同樣建議使用絕對網址 -->
+    <meta property="og:url" content="https://image.starfall.dpdns.org/file/AgACAgUAAyEGAASsg8WbAAMgaRyi-oBcc9HT_Zqy9Zr87ektpK4AAkcMaxtOp-BU5vPpEe4AAWXcAQADAgADdwADNgQ.jpg">
     <meta property="og:site_name" content="AntiNuke360">
     
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="AntiNuke360 v1.2.3 - 你的反核+反盜帳助手">
-    <meta name="twitter:description" content="永久免費、永久開源的 Discord高效反Nuke機器人">
-    <meta name="twitter:image" content="index_LinkPreviewImage.jpg">
+    <meta name="twitter:title" content="AntiNuke360 v1.2.4 - 你的反核+反盜帳助手">
+    <meta name="twitter:description" content="永久免費、永久開源的 Discord 高效反Nuke機器人">
+    <meta name="twitter:image" content="https://image.starfall.dpdns.org/file/AgACAgUAAyEGAASsg8WbAAMgaRyi-oBcc9HT_Zqy9Zr87ektpK4AAkcMaxtOp-BU5vPpEe4AAWXcAQADAgADdwADNgQ.jpg">
     
-    <title>AntiNuke360 v1.2.3 - 你的反核+反盜帳助手</title>
+    <title>AntiNuke360 v1.2.4 - 你的反核+反盜帳助手</title>
     <style>
         * {
             margin: 0;
@@ -551,8 +554,8 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.2.3 - 最新版本</div>
-        <p>永久免費、永久開源的 Discord高效反Nuke機器人</p>
+        <div class="version">v1.2.4 - 最新版本</div>
+        <p>永久免費、永久開源的 Discord 高效反Nuke機器人</p>
     </header>
 
     <nav>
@@ -581,7 +584,7 @@
     <section id="intro">
         <div class="glass-panel">
             <h2>介紹</h2>
-            <p>AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對核打擊 (Nuke) 攻擊進行防禦。</p>
+            <p>AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對核打擊 (Nuke) 攻擊與被盜帳號行為進行防禦。</p>
             <p>完全開源、完全免費、100%透明。</p>
 
             <div class="stats">
@@ -656,15 +659,27 @@
                 </div>
                 <div class="feature-card">
                     <h3>反被盜帳偵測<span class="badge hijack">v1.2.2</span></h3>
-                    <p>監控 5 秒內在不同頻道發送相同訊息的異常行為，自動踢出被盜帳號。</p>
+                    <p>監控 5 秒內在不同頻道發送相同訊息的異常行為，自動踢出被盜帳號並提供一鍵回服邀請。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>日誌頻道私訊提示<span class="badge security">v1.2.4</span></h3>
+                    <p>當伺服器尚未設定日誌頻道時，重要事件會透過私訊發送，並在訊息中提示「在私訊看到代表未設置日誌頻道」，方便管理員排查設定。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>防踢白名單引導<span class="badge new">v1.2.4</span></h3>
+                    <p>黑名單停權通知中會附帶 <code>/add-server-anti-kick</code> 說明，引導伺服器擁有者將可信任帳號加入防踢白名單，避免誤封。</p>
+                </div>
+                <div class="feature-card">
+                    <h3>歡迎頻道自動重試<span class="badge new">v1.2.4</span></h3>
+                    <p>加入伺服器時若建立歡迎頻道失敗，會每分鐘重試一次，直到建立成功或 Bot 自動離開伺服器。</p>
                 </div>
             </div>
 
-            <h3 style="margin-top: 32px;">v1.2.3 核心改進</h3>
+            <h3 style="margin-top: 32px;">v1.2.4 核心改進</h3>
             <ul>
-                <li><strong>10 分鐘延遲檢查</strong> - 給予管理員充足時間配置身分組和權限</li>
-                <li><strong>避免身分組污染</strong> - 不會生成無法刪除的自動身分組</li>
-                <li><strong>改進使用體驗</strong> - 管理員可以自由配置權限而不擔心遺留身分組</li>
+                <li><strong>日誌頻道私訊註記</strong>：當在私訊中收到 AntiNuke360 的重要通知時，會清楚標明「若在私訊看到此訊息，代表伺服器尚未設定日誌頻道」，協助管理員快速定位問題。</li>
+                <li><strong>黑名單停權引導</strong>：掃描並停權黑名單成員時，會於通知中加入 <code>/add-server-anti-kick</code> 說明，避免對可信任帳號造成干擾。</li>
+                <li><strong>歡迎頻道重試機制</strong>：Bot 加入伺服器後若因權限或 Discord 狀態導致歡迎頻道建立失敗，會每分鐘自動重試，直到成功或離開伺服器。</li>
             </ul>
         </div>
     </section>
@@ -689,8 +704,8 @@
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.2.3)：
-                    <pre><code>python AntiNuke360_v1.2.3.py</code></pre>
+                <li>啟動機器人 (v1.2.4)：
+                    <pre><code>python AntiNuke360_v1.2.4.py</code></pre>
                 </li>
             </ol>
 
@@ -699,7 +714,7 @@
                 <li>前往 Discord Developer Portal。</li>
                 <li>建立新 Application，並在 Bot 分頁建立機器人。</li>
                 <li>複製 Bot Token 到 .env 檔案。</li>
-                <li>在 OAuth2 的 URL Generator 中勾選Administrator權限。</li>
+                <li>在 OAuth2 的 URL Generator 中勾選 Administrator 權限。</li>
                 <li>使用生成的邀請連結將機器人加入伺服器。</li>
             </ol>
 
@@ -718,7 +733,7 @@
             <p>查看 AntiNuke360 的當前運行狀態、防護參數與統計。</p>
 
             <h3>/scan-blacklist</h3>
-            <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。</p>
+            <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。若要在本伺服器允許特定黑名單帳號，可請伺服器擁有者使用 <code>/add-server-anti-kick</code> 將其加入防踢白名單。</p>
 
             <h3>/restore-snapshot</h3>
             <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。</p>
@@ -733,7 +748,7 @@
             <p>查看本伺服器的白名單狀態 (防踢、臨時、永久)。需要管理員權限。</p>
 
             <h3>/set-log-channel [#channel]</h3>
-            <p>設置本伺服器的記錄頻道。所有防護事件都會記錄在此。需要管理員權限。</p>
+            <p>設置本伺服器的記錄頻道。所有防護事件都會記錄在此。若未設定，重要事件將以私訊方式傳送並附註說明。需要管理員權限。</p>
 
             <h3>/toggle-anti-hijack [on/off]</h3>
             <p>開啟或關閉反被盜帳功能。預設啟用。需要管理員權限。</p>
@@ -741,16 +756,16 @@
             <h3 style="margin-top: 24px;">伺服器擁有者指令</h3>
 
             <h3>/add-server-anti-kick [ID]</h3>
-            <p>將機器人加入防踢白名單。允許全域黑名單帳號加入但記錄監控。</p>
+            <p>將機器人或成員加入防踢白名單。允許全域黑名單帳號在本伺服器中保留，但仍會記錄監控。</p>
 
             <h3>/remove-server-anti-kick [ID]</h3>
-            <p>從防踢白名單移除機器人。</p>
+            <p>從防踢白名單移除機器人或成員。</p>
 
             <h3>/add-server-perm [ID]</h3>
-            <p>將機器人加入永久白名單。對所有敏感操作完全豁免。</p>
+            <p>將機器人或成員加入永久白名單。對所有敏感操作完全豁免。</p>
 
             <h3>/remove-server-perm [ID]</h3>
-            <p>從永久白名單移除機器人。</p>
+            <p>從永久白名單移除機器人或成員。</p>
         </div>
     </section>
 
@@ -758,20 +773,28 @@
         <div class="glass-panel">
             <h2>常見問題</h2>
 
+            <h3>v1.2.4 新增了什麼？</h3>
+            <p>v1.2.4 聚焦於實務使用的細節優化：</p>
+            <ul>
+                <li>所有以私訊送出的重要通知都會附帶「若在私訊看到此訊息，代表伺服器尚未設定日誌頻道」說明。</li>
+                <li>黑名單掃描與自動停權通知會主動提示可使用 <code>/add-server-anti-kick</code> 避免誤封可信任帳號。</li>
+                <li>加入伺服器時若歡迎頻道建立失敗，Bot 會每分鐘重試建立，直到成功或離開伺服器。</li>
+            </ul>
+
             <h3>v1.2.3 新增了什麼？</h3>
             <p>v1.2.3 新增了 <strong>10 分鐘延遲初始化機制</strong>。機器人不再加入伺服器後立即檢查權限，而是等待 10 分鐘後才檢查。這給予管理員充足時間來配置身分組和權限，避免生成無法刪除的自動身分組。</p>
 
             <h3>為什麼要延遲 10 分鐘檢查？</h3>
-            <p>因為有些管理員為了方便整理身份組，會在加入伺服器前拔掉所有權限，隨後再為機器人增加有Administrator權限的身份組。若加入時不拔掉所有權限，機器人身分組就會無法刪除。10 分鐘延遲給予管理員時間來手動配置所需的身分組，讓機器人身分組不需要自動創建。</p>
+            <p>因為有些管理員為了方便整理身份組，會在加入伺服器前拔掉所有權限，隨後再為機器人增加有 Administrator 權限的身份組。若加入時不拔掉所有權限，機器人身分組就會無法刪除。10 分鐘延遲給予管理員時間來手動配置所需的身分組，讓機器人身分組不需要自動創建。</p>
 
             <h3>延遲期間發生攻擊怎麼辦？</h3>
             <p>這取決於有沒有正確設置權限。即使在延遲期間，只要在攻擊發生前正確設置了權限，伺服器仍可受保護。</p>
 
             <h3>反被盜帳功能如何工作？</h3>
-            <p>與其他 Bot 不同，AntiNuke360 不使用特定頻道偵測。而是監控 5 秒內在不同頻道發送相同訊息的行為，這是被盜帳號的真實特徵。這樣可以避免誤傷好奇用戶，提高精準度。</p>
+            <p>與其他 Bot 不同，AntiNuke360 不使用特定頻道偵測，而是監控 5 秒內在不同頻道發送相同訊息的行為，這是被盜帳號的真實特徵。這樣可以避免誤傷好奇用戶，提高精準度。</p>
 
             <h3>可以關閉反被盜帳功能嗎？</h3>
-            <p>可以。使用 `/toggle-anti-hijack off` 指令關閉反被盜帳功能。預設是啟用的。</p>
+            <p>可以。使用 <code>/toggle-anti-hijack off</code> 指令關閉反被盜帳功能。預設是啟用的。</p>
 
             <h3>v1.2 修復了什麼 0day 漏洞？</h3>
             <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
@@ -800,10 +823,10 @@
 
             <h3 style="margin-top: 28px;">專案資訊</h3>
             <ul>
-                <li>開發者Discord ID：800536911378251787</li>
+                <li>開發者 Discord ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.2.3（2025 年 11 月）</li>
+                <li>目前版本：v1.2.4（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
@@ -814,7 +837,7 @@
             <a href="Terms_of_Service.html">服務條款</a>
             <a href="https://github.com/hoyin666/AntiNuke360">GitHub</a>
         </div>
-        AntiNuke360 v1.2.3 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.2.4 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
     </footer>
 
     <script>
