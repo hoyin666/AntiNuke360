@@ -18,7 +18,7 @@ SERVER_WHITELIST_FILE = "server_whitelist.json"
 GUILDS_FILE = "guilds_data.json"
 SNAPSHOT_DIR = Path("snapshots")
 SNAPSHOT_TTL_SECONDS = 72 * 3600  # 72 hours
-VERSION = "v1.2.3"  # 更新版本號
+VERSION = "v1.2.4"  # 更新版本號
 
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
@@ -312,7 +312,8 @@ async def check_admin_permission_loop():
                         "機器人需要 **Administrator** 權限才能正常運作，包含偵測與阻止 nuke 攻擊、封鎖黑名單機器人，"
                         "以及在伺服器遭受破壞時進行自動還原等功能。\n\n"
                         "目前我在此伺服器中沒有 **Administrator** 權限，因此將自動離開。\n"
-                        "請在重新邀請本機器人時，勾選 **Administrator** 權限。"
+                        "請在重新邀請本機器人時，勾選 **Administrator** 權限。\n\n"
+                        "若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
                     )
 
                     # DM 擁有者與可能邀請本 bot 的管理員
@@ -675,7 +676,7 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
         if owner:
             dm = await owner.create_dm()
             try:
-                await dm.send(message_text)
+                await dm.send(message_text + "\n\n若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。")
                 sent_location = ("dm", owner.id)
             except Exception:
                 sent_location = None
@@ -722,7 +723,7 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
             notify = f"還原結果: {'成功' if ok else '失敗'}。{msg}"
             try:
                 if sent_location[0] == "dm":
-                    await resp.channel.send(notify)
+                    await resp.channel.send(notify + "\n\n若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。")
                 else:
                     ch = guild.get_channel(sent_location[1])
                     if ch:
@@ -737,7 +738,7 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
             )
             try:
                 if sent_location[0] == "dm":
-                    await resp.channel.send(notify)
+                    await resp.channel.send(notify + "\n\n若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。")
                 else:
                     ch = guild.get_channel(sent_location[1])
                     if ch:
@@ -753,7 +754,7 @@ async def prompt_restore_on_suspect(guild: discord.Guild):
         try:
             if sent_location and sent_location[0] == "dm" and owner:
                 dm = await owner.create_dm()
-                await dm.send(notify)
+                await dm.send(notify + "\n\n若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。")
             elif sent_location:
                 ch = guild.get_channel(sent_location[1])
                 if ch:
@@ -775,6 +776,18 @@ async def scan_and_ban_blacklist(guild):
                     anti_kick = server_whitelists[guild.id]["anti_kick"]
                     if member.id in anti_kick:
                         print(f"[SCAN] {member} 在伺服器防踢白名單中，跳過停權")
+                        # 提醒：可透過 /add-server-anti-kick 避免黑名單用戶被踢
+                        try:
+                            embed = discord.Embed(title="[AntiNuke360 記錄 - 防踢白名單生效]", color=discord.Color.orange())
+                            embed.description = (
+                                f"被列入全域黑名單的使用者/機器人 `{member}` (ID: `{member.id}`) 在伺服器 `{guild.name}` 中被跳過停權，"
+                                "因為其已被加入本伺服器的防踢白名單。\n\n"
+                                "若您要讓黑名單用戶在此伺服器中不被自動停權，可使用 `/add-server-anti-kick` 將目標 ID 加入防踢白名單。"
+                            )
+                            embed.set_footer(text="AntiNuke360 v1.2.4")
+                            await send_log(guild, embed=embed)
+                        except Exception:
+                            pass
                         continue
 
                     if member.id not in banned_in_session[guild.id]:
@@ -784,6 +797,20 @@ async def scan_and_ban_blacklist(guild):
                         banned_in_session[guild.id].add(member.id)
                         banned_count += 1
                         print(f"[SCAN] 已停權黑名單成員: {member} (ID: {member.id})")
+
+                        # 停權提醒：可透過 /add-server-anti-kick 來避免黑名單用戶被踢
+                        try:
+                            embed = discord.Embed(title="[AntiNuke360 黑名單停權]", color=discord.Color.red())
+                            embed.description = (
+                                f"使用者/機器人 `{member}` (ID: `{member.id}`) 已因黑名單紀錄在伺服器 `{guild.name}` 被自動停權。\n\n"
+                                f"黑名單原因: {ban_reason}\n\n"
+                                "如果您確定此帳號在本伺服器是安全的、並希望未來不要再被自動停權，\n"
+                                "伺服器擁有者可以使用 `/add-server-anti-kick` 指令將其加入本伺服器的防踢白名單。"
+                            )
+                            embed.set_footer(text="AntiNuke360 v1.2.4")
+                            await send_log(guild, embed=embed)
+                        except Exception:
+                            pass
                 except Exception as e:
                     print(f"[SCAN ERROR] 無法停權 {member}: {e}")
     except Exception as e:
@@ -810,7 +837,7 @@ async def check_permission_errors(guild):
 - 檢視審核日誌 (View Audit Log)
 
 權限不足會導致無法正常防護伺服器，Bot 將自動離開此伺服器。"""
-            embed.set_footer(text="AntiNuke360 v1.2.3")
+            embed.set_footer(text="AntiNuke360 v1.2.4")
             try:
                 await send_log(guild, embed=embed)
                 print(f"[PERMISSION] 已向伺服器所有者/記錄頻道發送通知")
@@ -914,6 +941,18 @@ async def send_log(guild: discord.Guild, content: str = None, embed: discord.Emb
     for r in recipients:
         try:
             dm = await r.create_dm()
+            # 若沒有設定日誌頻道，私訊最後加上一句提示
+            if embed is not None:
+                if embed.footer and embed.footer.text:
+                    footer_text = embed.footer.text + " | 若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
+                else:
+                    footer_text = "若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
+                embed.set_footer(text=footer_text)
+            else:
+                if content is None:
+                    content = ""
+                suffix = "\n\n若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
+                content = (content or "") + suffix
             await dm.send(content=content, embed=embed)
             sent = True
         except Exception:
@@ -941,7 +980,7 @@ async def track_action(guild, user, action_type):
     # 如果是敏感操作且在臨時白名單內，使用較寬鬆的限制
     if action_type in SENSITIVE_ACTIONS and is_temporary_whitelisted(guild.id, user.id):
         max_count = TEMP_WHITELIST_MAX
-        window = TEMP_WHITELIST_WINDOW
+        window = TEMP_WHISTELIST_WINDOW
     else:
         max_count = PROTECTION_CONFIG["max_actions"]
         window = PROTECTION_CONFIG["window_seconds"]
@@ -990,10 +1029,15 @@ async def take_action(guild, user, reason):
         if uid not in notified_bans[gid] and guild.owner:
             notified_bans[gid].add(uid)
             embed = discord.Embed(title="[AntiNuke360 警報]", color=discord.Color.red())
-            embed.description = f"使用者 `{user}` (ID: `{uid}`) 已在伺服器 `{guild.name}` 被自動封鎖。\n\n原因: {reason}"
+            embed.description = (
+                f"使用者 `{user}` (ID: `{uid}`) 已在伺服器 `{guild.name}` 被自動封鎖。\n\n"
+                f"原因: {reason}\n\n"
+                "若此帳號在本伺服器是被允許的，伺服器擁有者可以使用 `/add-server-anti-kick` 指令\n"
+                "將其加入本伺服器的防踢白名單，以避免未來再度因黑名單或異常行為被自動封鎖。"
+            )
             embed.add_field(name="伺服器", value=guild.name, inline=True)
             embed.add_field(name="伺服器 ID", value=str(gid), inline=True)
-            embed.set_footer(text="AntiNuke360")
+            embed.set_footer(text="AntiNuke360 v1.2.4")
             try:
                 await send_log(guild, embed=embed)
             except Exception:
@@ -1184,7 +1228,8 @@ async def on_guild_join(guild):
                     "機器人需要 **Administrator** 權限才能正常運作，包含偵測與阻止 nuke 攻擊、封鎖黑名單機器人，"
                     "以及在伺服器遭受破壞時進行自動還原等功能。\n\n"
                     "目前我在此伺服器中沒有 **Administrator** 權限，因此將自動離開。\n"
-                    "請在重新邀請本機器人時，勾選 **Administrator** 權限。"
+                    "請在重新邀請本機器人時，勾選 **Administrator** 權限。\n\n"
+                    "若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
                 )
 
                 for r in recipients:
@@ -1204,6 +1249,51 @@ async def on_guild_join(guild):
 
     # 啟動背景任務，不阻塞 on_guild_join
     asyncio.create_task(delayed_admin_check(guild))
+
+    # === 新增：若沒有成功創建歡迎頻道，每分鐘重試一次，直到成功或離開 ===
+    async def retry_welcome_channel(g: discord.Guild):
+        try:
+            while True:
+                # 如果 Bot 已離開伺服器，就停止重試
+                if g not in bot.guilds:
+                    print(f"[WELCOME RETRY] Bot 已不在伺服器 {g.name} 中，停止重試創建歡迎頻道")
+                    return
+
+                data = load_guilds_data()
+                info = data.get(str(g.id), {})
+                welcome_id = info.get("welcome_channel_id")
+                has_welcome = False
+                if welcome_id:
+                    ch = g.get_channel(welcome_id)
+                    if isinstance(ch, discord.TextChannel):
+                        has_welcome = True
+
+                if has_welcome:
+                    print(f"[WELCOME RETRY] 已確認伺服器 {g.name} 擁有歡迎頻道，停止重試")
+                    return
+
+                print(f"[WELCOME RETRY] 伺服器 {g.name} 尚未成功建立歡迎頻道，嘗試重新建立...")
+                await send_welcome_message(g)
+
+                # 再檢查一次是否成功
+                data = load_guilds_data()
+                info = data.get(str(g.id), {})
+                welcome_id = info.get("welcome_channel_id")
+                has_welcome = False
+                if welcome_id:
+                    ch = g.get_channel(welcome_id)
+                    if isinstance(ch, discord.TextChannel):
+                        has_welcome = True
+
+                if has_welcome:
+                    print(f"[WELCOME RETRY] 已在伺服器 {g.name} 成功建立歡迎頻道 (重試)")
+                    return
+
+                await asyncio.sleep(60)
+        except Exception as e:
+            print(f"[WELCOME RETRY ERROR] 在重試建立歡迎頻道時發生錯誤 (伺服器: {g.name}): {e}")
+
+    asyncio.create_task(retry_welcome_channel(guild))
     # === 新增程式碼結束 ===
 
 @bot.event
@@ -1234,9 +1324,13 @@ async def on_member_join(member):
             print(f"[JOIN] {member} (全域黑名單但在伺服器防踢白名單) 加入伺服器 {guild.name}，允許")
             # 記錄該事件
             embed = discord.Embed(title="[AntiNuke360 記錄]", color=discord.Color.orange())
-            embed.description = f"被列入全域黑名單的使用者/機器人 `{member}` (ID: `{member.id}`) 被允許加入此伺服器，因為其在本伺服器的防踢白名單中。"
+            embed.description = (
+                f"被列入全域黑名單的使用者/機器人 `{member}` (ID: `{member.id}`) 被允許加入此伺服器，"
+                "因為其在本伺服器的防踢白名單中。\n\n"
+                "若您要讓特定黑名單用戶在本伺服器中不被自動停權，可以使用 `/add-server-anti-kick` 將其加入防踢白名單。"
+            )
             embed.add_field(name="伺服器", value=guild.name, inline=True)
-            embed.set_footer(text="AntiNuke360")
+            embed.set_footer(text="AntiNuke360 v1.2.4")
             try:
                 await send_log(guild, embed=embed)
             except Exception:
@@ -1252,10 +1346,14 @@ async def on_member_join(member):
             if user_id_str not in notified_bans[guild.id]:
                 notified_bans[guild.id].add(member.id)
                 embed = discord.Embed(title="[AntiNuke360 警報]", color=discord.Color.red())
-                embed.description = f"黑名單機器人 `{member}` (ID: `{member.id}`) 試圖加入伺服器被自動封鎖。"
-                embed.add_field(name="被列入黑名單的原因", value=ban_reason, inline=False)
+                embed.description = (
+                    f"黑名單機器人 `{member}` (ID: `{member.id}`) 試圖加入伺服器被自動封鎖。\n\n"
+                    f"被列入黑名單的原因: {ban_reason}\n\n"
+                    "如果您確定此機器人在本伺服器是被允許的，伺服器擁有者可以使用 `/add-server-anti-kick`，\n"
+                    "將其加入本伺服器的防踢白名單，以避免未來再度被自動封鎖。"
+                )
                 embed.add_field(name="伺服器", value=guild.name, inline=True)
-                embed.set_footer(text="AntiNuke360")
+                embed.set_footer(text="AntiNuke360 v1.2.4")
                 try:
                     await send_log(guild, embed=embed)
                 except Exception:
@@ -1439,6 +1537,8 @@ async def handle_anti_hijack(message: discord.Message):
 
         try:
             dm = await user.create_dm()
+            dm_text_lines.append("")
+            dm_text_lines.append("若您是在私訊中看到此訊息，代表部份伺服器尚未設定 AntiNuke360 的日誌頻道。")
             await dm.send("\n".join(dm_text_lines))
         except Exception as e:
             print(f"[ANTI HIJACK] 無法 DM 使用者 {user}: {e}")
@@ -1450,7 +1550,7 @@ async def handle_anti_hijack(message: discord.Message):
             f"本頻道: {message.channel.mention}\n"
             f"訊息內容: ```{content[:1500]}```"
         )
-        embed.set_footer(text="AntiNuke360 v1.2.3")
+        embed.set_footer(text="AntiNuke360 v1.2.4")
         try:
             await send_log(guild, embed=embed)
         except Exception:
@@ -1665,16 +1765,20 @@ async def scan_blacklist(interaction: discord.Interaction):
     try:
         scan_count, banned_count = await scan_and_ban_blacklist(interaction.guild)
         embed = discord.Embed(title="黑名單掃描完成", color=discord.Color.green())
-        embed.description = "已掃描伺服器中的成員並停權黑名單帳號"
+        embed.description = (
+            "已掃描伺服器中的成員並停權黑名單帳號。\n\n"
+            "若有特定黑名單帳號在本伺服器是被允許的，伺服器擁有者可以使用 `/add-server-anti-kick` 將其加入防踢白名單，"
+            "以避免未來再次被自動停權。"
+        )
         embed.add_field(name="掃描人數", value=str(scan_count), inline=True)
         embed.add_field(name="停權人數", value=str(banned_count), inline=True)
         embed.add_field(name="伺服器", value=interaction.guild.name, inline=False)
-        embed.set_footer(text="AntiNuke360 v1.2.3")
+        embed.set_footer(text="AntiNuke360 v1.2.4")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="掃描失敗", color=discord.Color.red())
         embed.description = f"掃描伺服器時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2.3")
+        embed.set_footer(text="AntiNuke360 v1.2.4")
         await interaction.followup.send(embed=embed)
 
 # 臨時白名單 - 管理員可增刪
@@ -1789,7 +1893,7 @@ async def server_whitelist(interaction: discord.Interaction):
             lines.append(f"  {i+1}. `{bid}`")
     embed = discord.Embed(title="本伺服器白名單狀態", color=discord.Color.blue())
     embed.description = "\n".join(lines[:30])
-    embed.set_footer(text="AntiNuke360 v1.2.3")
+    embed.set_footer(text="AntiNuke360 v1.2.4")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="set-log-channel", description="設定本伺服器的記錄頻道 (管理員)")
@@ -1849,9 +1953,13 @@ async def add_black(interaction: discord.Interaction, bot_id: str, reason: str =
     save_blacklist(bot_blacklist)
     await interaction.response.defer()
     embed = discord.Embed(title="已加入黑名單", color=discord.Color.red())
-    embed.description = f"機器人 ID: `{bot_id}` 已加入全域黑名單"
+    embed.description = (
+        f"機器人 ID: `{bot_id}` 已加入全域黑名單。\n\n"
+        "如需在特定伺服器允許此機器人，伺服器擁有者可以使用 `/add-server-anti-kick` 將其加入防踢白名單，"
+        "以避免未來被自動停權。"
+    )
     embed.add_field(name="原因", value=reason if reason else "無", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.3")
+    embed.set_footer(text="AntiNuke360 v1.2.4")
     await interaction.followup.send(embed=embed)
     await scan_blacklist_all_guilds()
 
@@ -1919,7 +2027,7 @@ async def blacklist(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.3")
+    embed.set_footer(text="AntiNuke360 v1.2.4")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="whitelist-list", description="查看全域白名單 (開發者)")
@@ -1937,7 +2045,7 @@ async def whitelist_list(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.3")
+    embed.set_footer(text="AntiNuke360 v1.2.4")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="scan-all-guilds", description="在所有伺服器掃描並停權黑名單成員 (開發者)")
@@ -1949,13 +2057,17 @@ async def scan_all_guilds(interaction: discord.Interaction):
     try:
         await scan_blacklist_all_guilds()
         embed = discord.Embed(title="全域黑名單掃描完成", color=discord.Color.green())
-        embed.description = "已在所有伺服器中掃描並停權黑名單成員"
-        embed.set_footer(text="AntiNuke360 v1.2.3")
+        embed.description = (
+            "已在所有伺服器中掃描並停權黑名單成員。\n\n"
+            "若您希望在特定伺服器中允許某些黑名單帳號，"
+            "可於該伺服器使用 `/add-server-anti-kick` 將其加入防踢白名單，以避免未來的自動停權。"
+        )
+        embed.set_footer(text="AntiNuke360 v1.2.4")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="全域掃描失敗", color=discord.Color.red())
         embed.description = f"掃描時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2.3")
+        embed.set_footer(text="AntiNuke360 v1.2.4")
         await interaction.followup.send(embed=embed)
 
 @app_commands.checks.has_permissions(administrator=True)
