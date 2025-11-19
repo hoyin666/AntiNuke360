@@ -6,8 +6,9 @@
 
 ## 功能概述
 
-AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nuke 攻擊進行防禦。它提供多層防護機制，包括實時攻擊偵測、自動封鎖惡意用戶、全域黑名單系統、伺服器快照自動還原，以及反被盜帳偵測功能。
+AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對 Nuke 攻擊進行防禦。它提供多層防護機制，包括實時攻擊偵測、自動封鎖惡意用戶、全域黑名單系統、伺服器快照自動還原、反被盜帳偵測功能，以及基於 MySQL 的資料持久化。
 
+---
 
 ## 核心功能
 
@@ -29,7 +30,9 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 時間窗口: 10 秒
 - 狀態: 啟用 (不可調整)
 
-### 伺服器快照系統
+---
+
+### 伺服器快照系統（Snapshot 存於 MySQL）
 
 機器人自動為每個伺服器建立結構快照，可在遭受攻擊後快速還原：
 
@@ -37,7 +40,18 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 保存所有角色、分類、頻道、權限設定
 - 攻擊發生時自動詢問是否還原
 - 完全恢復伺服器結構，防止永久破壞
-- 自動清理超過 72 小時的過期快照
+
+快照資料儲存在 MySQL 的 `snapshots` 資料表中，而不是本機檔案：
+
+```sql
+CREATE TABLE IF NOT EXISTS snapshots (
+    guild_id BIGINT PRIMARY KEY,
+    snapshot_json LONGTEXT NOT NULL,
+    updated_at DOUBLE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+---
 
 ### 一鍵還原功能
 
@@ -49,6 +63,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 完全重建角色、分類、頻道、權限
 - 快照在 72 小時內持續有效
 
+---
+
 ### 全域黑名單系統
 
 機器人維護一個全域黑名單，自動識別並追蹤已知的惡意機器人：
@@ -57,20 +73,9 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 機器人試圖加入伺服器時立即封鎖
 - 支援手動掃描功能，識別並停權已在伺服器中的黑名單成員
 - 黑名單信息包括機器人 ID、名稱、原因和被檢測的伺服器列表
-- 黑名單數據持久化儲存
+- 使用 MySQL `bot_blacklist` 資料表持久化儲存
 
-### 本地伺服器白名單系統（三層）
-
-伺服器可以管理不同層級的白名單，區分管理員權限和擁有者權限：
-
-- **防踢白名單** (伺服器擁有者管理)  
-  允許全域黑名單帳號加入但記錄監控，可避免特定黑名單帳號在本伺服器被自動停權。
-- **臨時白名單** (管理員管理)  
-  1 小時自動過期，針對敏感操作寬鬆至 **15 次/15 秒**。
-- **永久白名單** (伺服器擁有者管理)  
-  對所有敏感操作完全豁免。
-
-所有白名單操作都記錄到指定的記錄頻道或發送給伺服器管理員。
+---
 
 ### 全域白名單系統
 
@@ -79,6 +84,26 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 開發者可新增/移除全域白名單成員
 - 白名單機器人在所有伺服器中自動豁免
 - 包含白名單原因和時間戳
+- 使用 MySQL `bot_whitelist` 資料表持久化儲存
+
+---
+
+### 本地伺服器白名單系統（三層）
+
+伺服器可以管理不同層級的白名單，區分管理員權限和擁有者權限：
+
+- **防踢白名單** (伺服器擁有者管理)  
+  允許全域黑名單帳號加入但記錄監控，可避免特定黑名單帳號在本伺服器被自動停權。
+
+- **臨時白名單** (管理員管理)  
+  1 小時自動過期，針對敏感操作寬鬆至 **15 次/15 秒**。
+
+- **永久白名單** (伺服器擁有者管理)  
+  對所有敏感操作完全豁免。
+
+所有白名單資料儲存在 MySQL `server_whitelist` 資料表中，所有操作都記錄到指定的記錄頻道或發送給伺服器管理員。
+
+---
 
 ### 稽核日誌監控
 
@@ -89,6 +114,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 監控角色建立事件
 - 監控 Webhook 建立事件
 - 同時檢查執行者是否在黑名單或白名單中
+
+---
 
 ### 反被盜帳偵測 (v1.2.2 新增)
 
@@ -101,6 +128,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 自動 DM 被害人 7 天一次性邀請連結用於帳號恢復
 - 永久白名單成員僅刪除訊息，不會被踢出
 
+---
+
 ### 黑名單訊息屏蔽 (v1.2.2 新增)
 
 全域黑名單成員無法發送訊息：
@@ -109,12 +138,16 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 防踢白名單成員的訊息同樣被屏蔽（除非在永久白名單）
 - 訊息刪除自動記錄
 
+---
+
 ### Administrator 權限檢查 (v1.2.1 新增)
 
 - 加入伺服器後自動檢查是否具有 Administrator 權限
 - 每小時定期檢查一次 Administrator 權限
 - 若無權限，通知擁有者和管理員後自動離開
 - 確保機器人持續具備完整的防護能力
+
+---
 
 ### 延遲初始化 (v1.2.3 新增)
 
@@ -123,6 +156,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 機器人加入伺服器時記錄時間戳
 - **延遲 10 分鐘後才檢查權限**（而非立即檢查）
 - 給予管理員充足時間配置身分組和權限
+
+---
 
 ### 權限錯誤監控
 
@@ -133,6 +168,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 自動離開缺乏必要權限的伺服器
 - 通知訊息包含需要的權限列表和修復建議
 
+---
+
 ### 成員加入掃描
 
 當新成員加入伺服器時：
@@ -142,6 +179,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 檢查是否在全域白名單中
 - 黑名單成員立即被封鎖
 
+---
+
 ### 自訂狀態文字
 
 機器人顯示多個輪流變化的自訂狀態文字，每 10 秒更換一次：
@@ -149,6 +188,8 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 包含 24 種不同的狀態文字
 - 自動循環切換
 - 增強機器人的人格特色
+
+---
 
 ### 歡迎訊息系統 + 歡迎頻道重試 (v1.2.4 增強)
 
@@ -159,12 +200,16 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 包含功能介紹、使用指南、防護參數和聯絡信息
 - **若創建失敗，會每分鐘自動重試，直到成功建立或 Bot 自動退出該伺服器** (v1.2.4)
 
+---
+
 ### 日誌頻道 & 私訊提示 (v1.2.4 新增)
 
 - 伺服器可使用 `/set-log-channel` 指定日誌頻道
 - 若未設定日誌頻道，重要事件會改為 **私訊伺服器擁有者與管理員**
 - 所有這類私訊會附帶提示：  
   **「若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。」**
+
+---
 
 ### 黑名單停權提醒與防踢白名單引導 (v1.2.4 新增)
 
@@ -328,6 +373,14 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - 遍歷所有伺服器進行掃描
 - 全域黑名單成員都會被識別和移除
 
+### `/check-black [ID]` (v1.3.0 新增)
+
+查詢某個 ID 是否在全域黑名單或白名單：
+
+- 只有開發者可用
+- 顯示該 ID 是否在黑名單 / 白名單
+- 顯示名稱、原因、timestamp 和偵測伺服器（若有）
+
 ---
 
 ## 安裝和設置
@@ -337,21 +390,76 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對Nu
 - Python 3.8 或更高版本
 - `discord.py` 庫
 - `python-dotenv` 庫
+- 可用的 MySQL/MariaDB 資料庫
 
 ### 依賴
 
 ```txt
 discord.py>=2.0
 python-dotenv
+mysql-connector-python
 ```
 
-### 安裝步驟
+### MySQL 資料表
+
+最少需要下列資料表（匯入/migrate 程式會自動建表，這裡只列出結構概念）：
+
+```sql
+CREATE TABLE IF NOT EXISTS bot_blacklist (
+    bot_id BIGINT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    reason TEXT,
+    timestamp DOUBLE,
+    guilds_detected TEXT
+);
+
+CREATE TABLE IF NOT EXISTS bot_whitelist (
+    bot_id BIGINT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    reason TEXT,
+    timestamp DOUBLE
+);
+
+CREATE TABLE IF NOT EXISTS server_whitelist (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    guild_id BIGINT NOT NULL,
+    anti_kick_user_id BIGINT DEFAULT NULL,
+    temp_user_id BIGINT DEFAULT NULL,
+    temp_expiry DOUBLE DEFAULT NULL,
+    perm_user_id BIGINT DEFAULT NULL,
+    log_channel_id BIGINT DEFAULT NULL,
+    PRIMARY KEY (id),
+    KEY idx_guild (guild_id)
+);
+
+CREATE TABLE IF NOT EXISTS guilds_data (
+    guild_id BIGINT PRIMARY KEY,
+    joined_at DOUBLE,
+    welcome_channel_id BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS snapshots (
+    guild_id BIGINT PRIMARY KEY,
+    snapshot_json LONGTEXT NOT NULL,
+    updated_at DOUBLE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+---
+
+### 安裝步驟（v1.3.0）
 
 1. 複製倉庫或下載程式碼。
-2. 建立 `.env` 檔案並設置 Discord Bot Token：
+2. 建立 `.env` 檔案並設置：
 
    ```env
    DISCORD_TOKEN=your_discord_bot_token_here
+
+   MYSQL_HOST=your_mysql_host_or_container_name
+   MYSQL_PORT=3306
+   MYSQL_USER=your_mysql_user
+   MYSQL_PASSWORD=your_mysql_password
+   MYSQL_DB=your_mysql_database
    ```
 
 3. 安裝依賴：
@@ -360,11 +468,15 @@ python-dotenv
    pip install -r requirements.txt
    ```
 
-4. 執行機器人 (v1.2.4)：
+4. 先執行一次資料表建立/匯入腳本（若有）或直接啟動 Bot，程式會自動檢查 `snapshots` 資料表。
+
+5. 執行機器人 (v1.3.0)：
 
    ```bash
-   python AntiNuke360_v1.2.4.py
+   python AntiNuke360_v1.3.py
    ```
+
+---
 
 ### Discord Bot 設置
 
@@ -378,15 +490,22 @@ python-dotenv
 
 ---
 
-## 資料儲存
+## 資料儲存（v1.3.0）
 
-機器人使用 JSON 檔案進行資料持久化：
+機器人使用 **MySQL** 進行主要資料持久化：
 
-- `bot_blacklist.json` - 全域黑名單
-- `bot_whitelist.json` - 全域白名單
-- `server_whitelist.json` - 各伺服器的本地白名單 (防踢、臨時、永久)
-- `guilds_data.json` - 伺服器資訊、歡迎頻道 ID、記錄頻道
-- `snapshots/` - 伺服器架構快照 (72 小時有效期)
+- `bot_blacklist` - 全域黑名單
+- `bot_whitelist` - 全域白名單
+- `server_whitelist` - 各伺服器的本地白名單 (防踢、臨時、永久、log 頻道)
+- `guilds_data` - 伺服器資訊、加入時間、歡迎頻道 ID
+- `snapshots` - 伺服器架構快照（72 小時有效期）
+
+舊版 JSON 檔案仍可用匯入腳本轉移到 MySQL：
+
+- `bot_blacklist.json`
+- `bot_whitelist.json`
+- `server_whitelist.json`
+- `guilds_data.json`
 
 ---
 
@@ -394,7 +513,7 @@ python-dotenv
 
 - 全域黑名單自動追蹤惡意機器人
 - 防護參數已優化並固定，無法被不當調整
-- 三層白名單系統 (v1.2) 防止管理員濫用
+- 三層白名單系統防止管理員濫用
 - 伺服器擁有者專屬權限確保關鍵決定權
 - 自動快照和還原系統防止永久破壞
 - 所有操作都記錄到指定頻道或通知管理員
@@ -403,6 +522,7 @@ python-dotenv
 - v1.2.1 新增 Administrator 權限檢查
 - v1.2.2 新增反被盜帳偵測和黑名單訊息屏蔽
 - v1.2.3 新增延遲初始化和智能權限檢查
+- v1.3.0 將核心資料與快照移至 MySQL，資料更安全可靠
 
 ---
 
@@ -442,6 +562,14 @@ python-dotenv
 ---
 
 ## 更新日誌
+
+### v1.3.0 (2025年11月19日)
+
+- 新增：**完整 MySQL 支援**
+  - 全域黑名單、全域白名單、本地伺服器白名單、guild 資料與快照全部改用 MySQL 儲存。
+  - 新增 `snapshots` 資料表，用於儲存伺服器結構快照 JSON。
+- 新增：**`/check-black` 指令**
+  - 可查詢任意 ID 是否在全域黑名單/白名單，顯示名稱、原因、timestamp 及偵測伺服器列表。
 
 ### v1.2.4 (2025年11月19日)
 
