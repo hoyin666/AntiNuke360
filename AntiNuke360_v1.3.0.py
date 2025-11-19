@@ -9,16 +9,23 @@ from discord import app_commands
 from dotenv import load_dotenv
 from pathlib import Path
 
+# 新增：MySQL
+import mysql.connector
+from mysql.connector import Error
+
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 DEVELOPER_ID = 800536911378251787
+
+# 這三個 JSON 不再使用，但保留常數名稱以免其他地方硬編碼
 BLACKLIST_FILE = "bot_blacklist.json"
 WHITELIST_FILE = "bot_whitelist.json"
 SERVER_WHITELIST_FILE = "server_whitelist.json"
 GUILDS_FILE = "guilds_data.json"
+
 SNAPSHOT_DIR = Path("snapshots")
 SNAPSHOT_TTL_SECONDS = 72 * 3600  # 72 hours
-VERSION = "v1.2.4"  # 更新版本號
+VERSION = "v1.3.0"  # 版本號
 
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
@@ -41,14 +48,9 @@ permission_errors = defaultdict(deque)
 # 防止短時間內重複詢問還原
 restore_prompted = defaultdict(lambda: 0)
 
-# === 新增：反外部應用程式刷屏 & 反被盜帳設定 ===
-# guild_id -> {"enabled": bool, "timeout": int}
-# external_spam_settings = defaultdict(lambda: {"enabled": True, "timeout": 900})
-# guild_id -> {"enabled": bool}
+# 反被盜帳設定
 anti_hijack_settings = defaultdict(lambda: {"enabled": True})
 
-# 反外部應用程式刷屏偵測用：guild_id -> user_id -> content -> deque[timestamps]
-# external_spam_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(deque)))
 # 反被盜帳偵測用：guild_id -> user_id -> content -> deque[(timestamp, channel_id)]
 hijack_tracker = defaultdict(lambda: defaultdict(lambda: defaultdict(deque)))
 
@@ -102,93 +104,308 @@ STATUS_MESSAGES = [
     "sorry, I am gay",
     "洋蔥女裝：來都來了",
     "你們都是佬🛐"
-    ]
+]
+
+# ========== MySQL 連線 & SQL 存取函式 ==========
+
+MYSQL_HOST = os.getenv("MYSQL_HOST", "c6f22e13-cd22-42c9-b4e9-6f5055d1aebd")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+MYSQL_DB = os.getenv("MYSQL_DB", "")
+
+
+def get_db_connection():
+    return mysql.connector.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=MYSQL_DB,
+        connection_timeout=10,
+    )
+
+
+def ensure_snapshots_table():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS snapshots (
+                guild_id BIGINT PRIMARY KEY,
+                snapshot_json LONGTEXT NOT NULL,
+                updated_at DOUBLE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("[DB] 已確認 snapshots 資料表存在。")
+    except Error as e:
+        print(f"[DB ERROR] 建立/確認 snapshots 表失敗: {e}")
+
 
 def load_blacklist():
-    if os.path.exists(BLACKLIST_FILE):
-        try:
-            with open(BLACKLIST_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    """從 MySQL 載入全域黑名單到記憶體 dict，結構維持與舊 JSON 一樣。"""
+    data = {}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT bot_id, name, reason, timestamp, guilds_detected FROM bot_blacklist")
+        for row in cursor.fetchall():
+            bot_id = str(row["bot_id"])
+            guilds = []
+            if row["guilds_detected"]:
+                try:
+                    guilds = json.loads(row["guilds_detected"])
+                except Exception:
+                    guilds = []
+            data[bot_id] = {
+                "name": row.get("name") or bot_id,
+                "reason": row.get("reason") or "",
+                "timestamp": float(row["timestamp"]) if row["timestamp"] is not None else 0,
+                "guilds_detected": guilds,
+            }
+        cursor.close()
+        conn.close()
+        print(f"[DB] 從 MySQL 載入黑名單 {len(data)} 筆")
+    except Error as e:
+        print(f"[DB ERROR] 載入黑名單失敗: {e}")
+    return data
+
 
 def save_blacklist(data):
-    with open(BLACKLIST_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"[BLACKLIST] 已儲存黑名單到 {BLACKLIST_FILE}")
+    """將記憶體中的黑名單 dict 寫回 MySQL。"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM bot_blacklist")
+        insert_sql = """
+            INSERT INTO bot_blacklist (bot_id, name, reason, timestamp, guilds_detected)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        rows = 0
+        for bot_id_str, info in data.items():
+            try:
+                bot_id = int(bot_id_str)
+            except ValueError:
+                continue
+            name = info.get("name", bot_id_str)
+            reason = info.get("reason", "")
+            ts = info.get("timestamp", None)
+            ts_val = float(ts) if ts is not None else None
+            guilds = info.get("guilds_detected", [])
+            guilds_str = json.dumps(guilds, ensure_ascii=False)
+            cursor.execute(insert_sql, (bot_id, name, reason, ts_val, guilds_str))
+            rows += 1
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[DB] 已儲存黑名單 {rows} 筆到 MySQL")
+    except Error as e:
+        print(f"[DB ERROR] 儲存黑名單失敗: {e}")
+
 
 def load_whitelist():
-    if os.path.exists(WHITELIST_FILE):
-        try:
-            with open(WHITELIST_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    """從 MySQL 載入全域白名單到記憶體 dict。"""
+    data = {}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT bot_id, name, reason, timestamp FROM bot_whitelist")
+        for row in cursor.fetchall():
+            bot_id = str(row["bot_id"])
+            data[bot_id] = {
+                "name": row.get("name") or bot_id,
+                "reason": row.get("reason") or "",
+                "timestamp": float(row["timestamp"]) if row["timestamp"] is not None else 0,
+            }
+        cursor.close()
+        conn.close()
+        print(f"[DB] 從 MySQL 載入白名單 {len(data)} 筆")
+    except Error as e:
+        print(f"[DB ERROR] 載入白名單失敗: {e}")
+    return data
+
 
 def save_whitelist(data):
-    with open(WHITELIST_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"[WHITELIST] 已儲存白名單到 {WHITELIST_FILE}")
+    """將全域白名單 dict 寫回 MySQL。"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM bot_whitelist")
+        insert_sql = """
+            INSERT INTO bot_whitelist (bot_id, name, reason, timestamp)
+            VALUES (%s, %s, %s, %s)
+        """
+        rows = 0
+        for bot_id_str, info in data.items():
+            try:
+                bot_id = int(bot_id_str)
+            except ValueError:
+                continue
+            name = info.get("name", bot_id_str)
+            reason = info.get("reason") or ""
+            ts = info.get("timestamp", None)
+            ts_val = float(ts) if ts is not None else None
+            cursor.execute(insert_sql, (bot_id, name, reason, ts_val))
+            rows += 1
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[DB] 已儲存白名單 {rows} 筆到 MySQL")
+    except Error as e:
+        print(f"[DB ERROR] 儲存白名單失敗: {e}")
 
-# 新的伺服器白名單載入與儲存，支援 anti_kick / temporary / permanent / log_channel
+
 def load_server_whitelist():
-    if os.path.exists(SERVER_WHITELIST_FILE):
-        try:
-            with open(SERVER_WHITELIST_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                for gid_str, v in data.items():
-                    try:
-                        gid = int(gid_str)
-                    except Exception:
-                        continue
-                    anti = set(int(x) for x in v.get("anti_kick", []))
-                    perm = set(int(x) for x in v.get("permanent", []))
-                    temp = {}
-                    for k, expiry in v.get("temporary", {}).items():
-                        try:
-                            temp[int(k)] = float(expiry)
-                        except Exception:
-                            continue
-                    log_ch = v.get("log_channel", None)
-                    if log_ch is not None:
-                        try:
-                            log_ch = int(log_ch)
-                        except Exception:
-                            log_ch = None
-                    server_whitelists[gid] = {"anti_kick": anti, "temporary": temp, "permanent": perm, "log_channel": log_ch}
-                return data
-        except Exception as e:
-            print(f"[SERVER_WHITELIST] 載入失敗: {e}")
-            return {}
-    return {}
+    """
+    從 MySQL 載入 server_whitelist 表，填滿 in-memory 的 server_whitelists 結構。
+    結構同原本 JSON 轉換後的記憶體格式。
+    """
+    global server_whitelists
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT guild_id, anti_kick_user_id, temp_user_id, temp_expiry, perm_user_id, log_channel_id
+            FROM server_whitelist
+            """
+        )
+        server_whitelists = defaultdict(lambda: {"anti_kick": set(), "temporary": {}, "permanent": set(), "log_channel": None})
+        for row in cursor.fetchall():
+            gid = int(row["guild_id"])
+            anti = server_whitelists[gid]["anti_kick"]
+            temp = server_whitelists[gid]["temporary"]
+            perm = server_whitelists[gid]["permanent"]
+
+            if row["anti_kick_user_id"] is not None:
+                anti.add(int(row["anti_kick_user_id"]))
+            if row["temp_user_id"] is not None:
+                uid = int(row["temp_user_id"])
+                expiry = float(row["temp_expiry"]) if row["temp_expiry"] is not None else time.time()
+                temp[uid] = expiry
+            if row["perm_user_id"] is not None:
+                perm.add(int(row["perm_user_id"]))
+            if row["log_channel_id"] is not None:
+                server_whitelists[gid]["log_channel"] = int(row["log_channel_id"])
+
+        cursor.close()
+        conn.close()
+        print(f"[DB] 從 MySQL 載入 server_whitelist，guild 數量: {len(server_whitelists)}")
+    except Error as e:
+        print(f"[DB ERROR] 載入 server_whitelist 失敗: {e}")
+        return {}
+
 
 def save_server_whitelist():
-    data = {}
-    for gid, v in server_whitelists.items():
-        data[str(gid)] = {
-            "anti_kick": [str(x) for x in sorted(v["anti_kick"])],
-            "permanent": [str(x) for x in sorted(v["permanent"])],
-            "temporary": {str(k): vval for k, vval in v["temporary"].items()},
-            "log_channel": str(v["log_channel"]) if v["log_channel"] is not None else None
-        }
-    with open(SERVER_WHITELIST_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"[SERVER_WHITELIST] 已儲存伺服器白名單到 {SERVER_WHITELIST_FILE}")
+    """
+    將 in-memory 的 server_whitelists 寫回 MySQL。
+    邏輯：清空表，再依照記憶體重建所有列。
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM server_whitelist")
+        insert_sql = """
+            INSERT INTO server_whitelist
+            (guild_id, anti_kick_user_id, temp_user_id, temp_expiry, perm_user_id, log_channel_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        rows = 0
+        for gid, v in server_whitelists.items():
+            anti = v.get("anti_kick", set()) or set()
+            perm = v.get("permanent", set()) or set()
+            temporary = v.get("temporary", {}) or {}
+            log_ch = v.get("log_channel", None)
+            log_ch_id = int(log_ch) if log_ch is not None else None
+
+            for uid in anti:
+                cursor.execute(insert_sql, (gid, uid, None, None, None, log_ch_id))
+                rows += 1
+            for uid in perm:
+                cursor.execute(insert_sql, (gid, None, None, None, uid, log_ch_id))
+                rows += 1
+            for uid, expiry in temporary.items():
+                cursor.execute(insert_sql, (gid, None, uid, float(expiry), None, log_ch_id))
+                rows += 1
+            if not anti and not perm and not temporary and log_ch_id is not None:
+                cursor.execute(insert_sql, (gid, None, None, None, None, log_ch_id))
+                rows += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[DB] 已儲存 server_whitelist {rows} 列到 MySQL")
+    except Error as e:
+        print(f"[DB ERROR] 儲存 server_whitelist 失敗: {e}")
+
 
 def load_guilds_data():
-    if os.path.exists(GUILDS_FILE):
-        try:
-            with open(GUILDS_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    """
+    從 MySQL 載入 guilds_data，回傳 dict 結構與原 JSON 相同：
+    {
+      "guild_id_str": {
+        "joined_at": float,
+        "welcome_channel_id": int or None
+      }
+    }
+    """
+    data = {}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT guild_id, joined_at, welcome_channel_id FROM guilds_data")
+        for row in cursor.fetchall():
+            gid_str = str(row["guild_id"])
+            joined_at = float(row["joined_at"]) if row["joined_at"] is not None else time.time()
+            welcome = row["welcome_channel_id"]
+            welcome_id = int(welcome) if welcome is not None else None
+            data[gid_str] = {
+                "joined_at": joined_at,
+                "welcome_channel_id": welcome_id
+            }
+        cursor.close()
+        conn.close()
+        print(f"[DB] 從 MySQL 載入 guilds_data {len(data)} 筆")
+    except Error as e:
+        print(f"[DB ERROR] 載入 guilds_data 失敗: {e}")
+    return data
+
 
 def save_guilds_data(data):
-    with open(GUILDS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    """
+    將 guilds_data dict 寫回 MySQL。
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM guilds_data")
+        insert_sql = """
+            INSERT INTO guilds_data (guild_id, joined_at, welcome_channel_id)
+            VALUES (%s, %s, %s)
+        """
+        rows = 0
+        for gid_str, info in data.items():
+            try:
+                gid = int(gid_str)
+            except ValueError:
+                continue
+            joined_at = float(info.get("joined_at", time.time()))
+            welcome = info.get("welcome_channel_id", None)
+            welcome_id = int(welcome) if welcome is not None else None
+            cursor.execute(insert_sql, (gid, joined_at, welcome_id))
+            rows += 1
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[DB] 已儲存 guilds_data {rows} 筆到 MySQL")
+    except Error as e:
+        print(f"[DB ERROR] 儲存 guilds_data 失敗: {e}")
+
 
 def add_to_guilds_data(guild_id):
     data = load_guilds_data()
@@ -200,6 +417,7 @@ def add_to_guilds_data(guild_id):
         }
         save_guilds_data(data)
 
+
 def remove_from_guilds_data(guild_id):
     data = load_guilds_data()
     guild_id_str = str(guild_id)
@@ -207,9 +425,12 @@ def remove_from_guilds_data(guild_id):
         del data[guild_id_str]
         save_guilds_data(data)
 
+
+# 啟動時從 DB 載入黑白名單 & server_whitelist，並確認 snapshots 表
 bot_blacklist = load_blacklist()
 bot_whitelist = load_whitelist()
 load_server_whitelist()
+ensure_snapshots_table()
 
 class AntiNukeBot(commands.Bot):
     def __init__(self):
@@ -218,7 +439,6 @@ class AntiNukeBot(commands.Bot):
         intents.members = True
         intents.moderation = True
         intents.message_content = True
-        # 需要 presence intents 來找最近上線管理員（best-effort）
         intents.presences = True
         super().__init__(command_prefix="!", intents=intents)
         self.status_index = 0
@@ -241,13 +461,12 @@ async def on_ready():
     print(f"[READY] 全域白名單中有 {len(bot_whitelist)} 個機器人")
     print(f"[READY] 正在 {len(bot.guilds)} 個伺服器中")
     print(f"[READY] 自訂狀態文字已啟用 ({len(STATUS_MESSAGES)} 個)")
-    print(f"[READY] 快照資料夾: {SNAPSHOT_DIR.resolve()}，TTL: {SNAPSHOT_TTL_SECONDS} 秒")
+    print(f"[READY] 快照 TTL: {SNAPSHOT_TTL_SECONDS} 秒（存於 MySQL）")
     print("=" * 60)
     
     if not bot.change_status_loop.is_running():
         bot.change_status_loop.start()
         print("[STATUS] 已啟動狀態文字循環")
-    # 啟動每小時權限檢查
     if not check_admin_permission_loop.is_running():
         check_admin_permission_loop.start()
         print("[PERMISSION CHECK] 已啟動每小時 Administrator 權限檢查循環")
@@ -260,7 +479,6 @@ async def change_status_loop():
         
         status_message = STATUS_MESSAGES[bot.status_index]
         status_obj = discord.CustomActivity(name=status_message)
-        
         task = bot.change_presence(activity=status_obj, status=discord.Status.online)
         await asyncio.shield(task)
         
@@ -282,14 +500,11 @@ async def check_admin_permission_loop():
                 if not me or not me.guild_permissions.administrator:
                     print(f"[PERMISSION CHECK LOOP] 伺服器 {guild.name} 缺少 Administrator 權限，通知並離開")
 
-                    # 找到「加入本 bot 的使用者」：優先使用 guild.owner
                     recipients = []
                     owner = guild.owner
                     if owner:
                         recipients.append(owner)
 
-                    # 盡量推測邀請本機器人的使用者：從最近使用指令的成員中找，但目前沒有記錄；
-                    # 因此以擁有 Administrator 權限的非機器人管理員作為候補
                     admins = [m for m in guild.members if m.guild_permissions.administrator and not m.bot]
 
                     status_priority = {"online": 0, "idle": 1, "dnd": 2, "offline": 3, None: 3}
@@ -304,7 +519,7 @@ async def check_admin_permission_loop():
                     for a in admins_sorted:
                         if a not in recipients:
                             recipients.append(a)
-                        if len(recipients) >= 6:  # owner + 最多 5 位管理員
+                        if len(recipients) >= 6:
                             break
 
                     text = (
@@ -316,7 +531,6 @@ async def check_admin_permission_loop():
                         "若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
                     )
 
-                    # DM 擁有者與可能邀請本 bot 的管理員
                     for r in recipients:
                         try:
                             dm = await r.create_dm()
@@ -334,25 +548,60 @@ async def check_admin_permission_loop():
     except Exception as e:
         print(f"[PERMISSION CHECK LOOP ERROR] 每小時檢查循環發生錯誤: {e}")
 
-# Snapshot utilities
+# ========== Snapshot utilities：用 MySQL 儲存 ==========
+
 def snapshot_path(guild_id: int) -> Path:
     return SNAPSHOT_DIR / f"{guild_id}.json"
 
 def save_snapshot_file(guild_id: int, data: dict):
-    path = snapshot_path(guild_id)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"[SNAPSHOT] 已儲存伺服器 {guild_id} 快照到 {path}")
+    """
+    將 snapshot 以 JSON 字串存入 MySQL 的 snapshots 表。
+    結構與原 JSON 檔內容相同，只是儲存位置改為 DB。
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        snapshot_json = json.dumps(data, ensure_ascii=False)
+        now_ts = time.time()
+        cursor.execute(
+            """
+            INSERT INTO snapshots (guild_id, snapshot_json, updated_at)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                snapshot_json = VALUES(snapshot_json),
+                updated_at = VALUES(updated_at)
+            """,
+            (guild_id, snapshot_json, now_ts),
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[SNAPSHOT] 已將伺服器 {guild_id} 快照儲存至 MySQL snapshots 表")
+    except Error as e:
+        print(f"[SNAPSHOT ERROR] 儲存快照至 MySQL 失敗: {e}")
 
 def load_snapshot_file(guild_id: int):
-    path = snapshot_path(guild_id)
-    if not path.exists():
-        return None
+    """
+    從 MySQL snapshots 表讀取 snapshot JSON，回傳 dict。
+    若不存在則回傳 None。
+    """
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"[SNAPSHOT ERROR] 讀取快照失敗: {e}")
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT snapshot_json FROM snapshots WHERE guild_id = %s", (guild_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if not row:
+            return None
+        try:
+            data = json.loads(row["snapshot_json"])
+            return data
+        except Exception as e:
+            print(f"[SNAPSHOT ERROR] 解析 MySQL 中快照 JSON 失敗: {e}")
+            return None
+    except Error as e:
+        print(f"[SNAPSHOT ERROR] 從 MySQL 讀取快照失敗: {e}")
         return None
 
 def snapshot_is_valid(snapshot: dict) -> bool:
@@ -372,7 +621,6 @@ async def create_snapshot(guild: discord.Guild):
         print(f"[SNAPSHOT] 建立快照: {guild.name} ({guild.id})")
         data = {"timestamp": time.time(), "roles": [], "categories": [], "channels": []}
         
-        # Roles (exclude @everyone)
         roles = [r for r in guild.roles if r != guild.default_role]
         for r in roles:
             data["roles"].append({
@@ -384,7 +632,6 @@ async def create_snapshot(guild: discord.Guild):
                 "position": r.position
             })
         
-        # Categories
         categories = sorted(guild.categories, key=lambda c: c.position)
         for c in categories:
             overwrites = []
@@ -415,7 +662,6 @@ async def create_snapshot(guild: discord.Guild):
                 "overwrites": overwrites
             })
         
-        # Channels (text & voice)
         channels = sorted(guild.channels, key=lambda ch: getattr(ch, "position", 0))
         for ch in channels:
             ch_type = "text" if isinstance(ch, discord.TextChannel) else ("voice" if isinstance(ch, discord.VoiceChannel) else "other")
@@ -772,11 +1018,9 @@ async def scan_and_ban_blacklist(guild):
             user_id_str = str(member.id)
             if user_id_str in bot_blacklist:
                 try:
-                    # 如果此成員在伺服器的 anti_kick 白名單中，則跳過封鎖（伺服器擁有者已允許）
                     anti_kick = server_whitelists[guild.id]["anti_kick"]
                     if member.id in anti_kick:
                         print(f"[SCAN] {member} 在伺服器防踢白名單中，跳過停權")
-                        # 提醒：可透過 /add-server-anti-kick 避免黑名單用戶被踢
                         try:
                             embed = discord.Embed(title="[AntiNuke360 記錄 - 防踢白名單生效]", color=discord.Color.orange())
                             embed.description = (
@@ -784,7 +1028,7 @@ async def scan_and_ban_blacklist(guild):
                                 "因為其已被加入本伺服器的防踢白名單。\n\n"
                                 "若您要讓黑名單用戶在此伺服器中不被自動停權，可使用 `/add-server-anti-kick` 將目標 ID 加入防踢白名單。"
                             )
-                            embed.set_footer(text="AntiNuke360 v1.2.4")
+                            embed.set_footer(text="AntiNuke360 v1.3.0")
                             await send_log(guild, embed=embed)
                         except Exception:
                             pass
@@ -798,7 +1042,6 @@ async def scan_and_ban_blacklist(guild):
                         banned_count += 1
                         print(f"[SCAN] 已停權黑名單成員: {member} (ID: {member.id})")
 
-                        # 停權提醒：可透過 /add-server-anti-kick 來避免黑名單用戶被踢
                         try:
                             embed = discord.Embed(title="[AntiNuke360 黑名單停權]", color=discord.Color.red())
                             embed.description = (
@@ -807,7 +1050,7 @@ async def scan_and_ban_blacklist(guild):
                                 "如果您確定此帳號在本伺服器是安全的、並希望未來不要再被自動停權，\n"
                                 "伺服器擁有者可以使用 `/add-server-anti-kick` 指令將其加入本伺服器的防踢白名單。"
                             )
-                            embed.set_footer(text="AntiNuke360 v1.2.4")
+                            embed.set_footer(text="AntiNuke360 v1.3.0")
                             await send_log(guild, embed=embed)
                         except Exception:
                             pass
@@ -837,7 +1080,7 @@ async def check_permission_errors(guild):
 - 檢視審核日誌 (View Audit Log)
 
 權限不足會導致無法正常防護伺服器，Bot 將自動離開此伺服器。"""
-            embed.set_footer(text="AntiNuke360 v1.2.4")
+            embed.set_footer(text="AntiNuke360 v1.3.0")
             try:
                 await send_log(guild, embed=embed)
                 print(f"[PERMISSION] 已向伺服器所有者/記錄頻道發送通知")
@@ -903,7 +1146,6 @@ def set_log_channel_for_guild(guild_id: int, channel_id: int):
 def get_log_channel_for_guild(guild_id: int):
     return server_whitelists[guild_id].get("log_channel")
 
-# best-effort logger: send to configured log channel if possible; otherwise DM owner and up to 5 most-recently-online admins
 async def send_log(guild: discord.Guild, content: str = None, embed: discord.Embed = None):
     log_ch_id = get_log_channel_for_guild(guild.id)
     sent = False
@@ -917,14 +1159,11 @@ async def send_log(guild: discord.Guild, content: str = None, embed: discord.Emb
                     return True
             except Exception:
                 sent = False
-    # fallback: DM owner + up to 5 admins closest to being online
     owner = guild.owner
     recipients = []
     if owner:
         recipients.append(owner)
-    # Find admins (best-effort using presence). Filter members with manage_guild or administrator
     admins = [m for m in guild.members if (m.guild_permissions.administrator or m.guild_permissions.manage_guild) and not m.bot]
-    # Sort by presence (online > idle > dnd > offline) then by joined_at (recent first)
     status_priority = {"online": 0, "idle": 1, "dnd": 2, "offline": 3, None: 3}
     def admin_sort_key(m):
         st = getattr(m, "status", None)
@@ -937,11 +1176,9 @@ async def send_log(guild: discord.Guild, content: str = None, embed: discord.Emb
             recipients.append(a)
         if len(recipients) >= 6:
             break
-    # send DMs
     for r in recipients:
         try:
             dm = await r.create_dm()
-            # 若沒有設定日誌頻道，私訊最後加上一句提示
             if embed is not None:
                 if embed.footer and embed.footer.text:
                     footer_text = embed.footer.text + " | 若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
@@ -964,23 +1201,18 @@ async def track_action(guild, user, action_type):
         return False
     if user.id == guild.owner_id:
         return False
-    # 永久白名單: 對敏感操作有免疫
     if is_permanent_whitelisted(guild.id, user.id):
         return False
-    # 清掉過期的臨時白名單
     purge_expired_temporary(guild.id)
-    # 防止伺服器級別白名單對全域白名單/黑名單做重複檢查
     if user.id in whitelisted_users[guild.id]:
         return False
-    # 如果是全域白名單
     if str(user.id) in bot_whitelist:
         return False
 
     now = time.time()
-    # 如果是敏感操作且在臨時白名單內，使用較寬鬆的限制
     if action_type in SENSITIVE_ACTIONS and is_temporary_whitelisted(guild.id, user.id):
         max_count = TEMP_WHITELIST_MAX
-        window = TEMP_WHISTELIST_WINDOW
+        window = TEMP_WHITELIST_WINDOW
     else:
         max_count = PROTECTION_CONFIG["max_actions"]
         window = PROTECTION_CONFIG["window_seconds"]
@@ -999,13 +1231,13 @@ async def take_action(guild, user, reason):
     gid = guild.id
     uid = user.id
 
-    if uid in banned_in_session[gid]:
+    if uid in banned_in_session[guild.id]:
         return
 
     print(f"[ACTION] 開始處理 {user} (ID: {uid})")
     try:
         await guild.ban(user, reason=f"AntiNuke360: {reason}")
-        banned_in_session[gid].add(uid)
+        banned_in_session[guild.id].add(uid)
         print(f"[BAN] 成功封鎖 {user}")
 
         if user.bot:
@@ -1022,8 +1254,6 @@ async def take_action(guild, user, reason):
                     bot_blacklist[user_id_str]["guilds_detected"].append(gid)
             save_blacklist(bot_blacklist)
             print(f"[BLACKLIST] 已將 {user} 加入全域黑名單")
-
-            # 在所有伺服器中掃描並停權
             await scan_blacklist_all_guilds()
 
         if uid not in notified_bans[gid] and guild.owner:
@@ -1037,7 +1267,7 @@ async def take_action(guild, user, reason):
             )
             embed.add_field(name="伺服器", value=guild.name, inline=True)
             embed.add_field(name="伺服器 ID", value=str(gid), inline=True)
-            embed.set_footer(text="AntiNuke360 v1.2.4")
+            embed.set_footer(text="AntiNuke360 v1.3.0")
             try:
                 await send_log(guild, embed=embed)
             except Exception:
@@ -1131,7 +1361,6 @@ async def send_welcome_message(guild):
 /add-server-temp [ID] - 將成員或機器人加入本伺服器臨時白名單 (管理員，可移除)
 /remove-server-temp [ID]
 /set-log-channel [#channel] - 指定記錄頻道 (管理員)
-/set-external-spam [秒數] - 設定反外部應用程式刷屏禁言秒數 (0 只刪訊息+通知，最大 1209600 秒)
 /toggle-anti-hijack [on/off] - 開啟或關閉反被盜帳功能 (管理員)
 
 伺服器擁有者指令:
@@ -1170,7 +1399,7 @@ async def send_welcome_message(guild):
             inline=False
         )
         
-        embed.set_footer(text="AntiNuke360 v1.2.3 | 伺服器防護專家")
+        embed.set_footer(text="AntiNuke360 v1.3.0 | 伺服器防護專家（Snapshot 已存於 MySQL）")
         
         await channel.send(embed=embed)
         print(f"[WELCOME] 已在伺服器 {guild.name} 創建歡迎頻道")
@@ -1182,21 +1411,16 @@ async def send_welcome_message(guild):
 async def on_guild_join(guild):
     print(f"[JOIN] 已加入新伺服器: {guild.name} (ID: {guild.id})")
     add_to_guilds_data(guild.id)
-    # ensure default whitelist entry exists
     if guild.id not in server_whitelists:
         server_whitelists[guild.id] = {"anti_kick": set(), "temporary": {}, "permanent": set(), "log_channel": None}
         save_server_whitelist()
     await send_welcome_message(guild)
 
-    # === 新增：加入伺服器後「10 分鐘後」檢查是否具有 Administrator 權限，若沒有則通知並離開 ===
     async def delayed_admin_check(g: discord.Guild):
         try:
-            await asyncio.sleep(600)  # 10 分鐘 = 600 秒
-
-            # 如果這 10 分鐘內 Bot 已被踢出，此時 guild 可能不在 bot.guilds 中
+            await asyncio.sleep(600)
             if g not in bot.guilds:
                 return
-
             me = g.me
             if not me or not me.guild_permissions.administrator:
                 print(f"[PERMISSION CHECK] 在伺服器 {g.name} 中 10 分鐘後仍沒有 Administrator 權限，將通知並自動離開")
@@ -1220,7 +1444,7 @@ async def on_guild_join(guild):
                 for a in admins_sorted:
                     if a not in recipients:
                         recipients.append(a)
-                    if len(recipients) >= 6:  # owner + 最多 5 位管理員
+                    if len(recipients) >= 6:
                         break
 
                 text = (
@@ -1247,14 +1471,11 @@ async def on_guild_join(guild):
         except Exception as e:
             print(f"[PERMISSION CHECK ERROR] 在 on_guild_join 延遲檢查 Administrator 權限時發生錯誤: {e}")
 
-    # 啟動背景任務，不阻塞 on_guild_join
     asyncio.create_task(delayed_admin_check(guild))
 
-    # === 新增：若沒有成功創建歡迎頻道，每分鐘重試一次，直到成功或離開 ===
     async def retry_welcome_channel(g: discord.Guild):
         try:
             while True:
-                # 如果 Bot 已離開伺服器，就停止重試
                 if g not in bot.guilds:
                     print(f"[WELCOME RETRY] Bot 已不在伺服器 {g.name} 中，停止重試創建歡迎頻道")
                     return
@@ -1275,7 +1496,6 @@ async def on_guild_join(guild):
                 print(f"[WELCOME RETRY] 伺服器 {g.name} 尚未成功建立歡迎頻道，嘗試重新建立...")
                 await send_welcome_message(g)
 
-                # 再檢查一次是否成功
                 data = load_guilds_data()
                 info = data.get(str(g.id), {})
                 welcome_id = info.get("welcome_channel_id")
@@ -1294,7 +1514,6 @@ async def on_guild_join(guild):
             print(f"[WELCOME RETRY ERROR] 在重試建立歡迎頻道時發生錯誤 (伺服器: {g.name}): {e}")
 
     asyncio.create_task(retry_welcome_channel(guild))
-    # === 新增程式碼結束 ===
 
 @bot.event
 async def on_guild_remove(guild):
@@ -1311,18 +1530,15 @@ async def on_member_join(member):
     guild = member.guild
     user_id_str = str(member.id)
     
-    # 如果是機器人，建立或覆寫快照
     if member.bot:
         try:
             await create_snapshot(guild)
         except Exception as e:
             print(f"[SNAPSHOT ERROR] 建立快照時發生錯誤: {e}")
     
-    # 黑名單處理: 若在全域黑名單但在伺服器的 anti_kick 白名單中，則允許加入
     if user_id_str in bot_blacklist:
         if is_anti_kick_whitelisted(guild.id, member.id):
             print(f"[JOIN] {member} (全域黑名單但在伺服器防踢白名單) 加入伺服器 {guild.name}，允許")
-            # 記錄該事件
             embed = discord.Embed(title="[AntiNuke360 記錄]", color=discord.Color.orange())
             embed.description = (
                 f"被列入全域黑名單的使用者/機器人 `{member}` (ID: `{member.id}`) 被允許加入此伺服器，"
@@ -1330,7 +1546,7 @@ async def on_member_join(member):
                 "若您要讓特定黑名單用戶在本伺服器中不被自動停權，可以使用 `/add-server-anti-kick` 將其加入防踢白名單。"
             )
             embed.add_field(name="伺服器", value=guild.name, inline=True)
-            embed.set_footer(text="AntiNuke360 v1.2.4")
+            embed.set_footer(text="AntiNuke360 v1.3.0")
             try:
                 await send_log(guild, embed=embed)
             except Exception:
@@ -1353,7 +1569,7 @@ async def on_member_join(member):
                     "將其加入本伺服器的防踢白名單，以避免未來再度被自動封鎖。"
                 )
                 embed.add_field(name="伺服器", value=guild.name, inline=True)
-                embed.set_footer(text="AntiNuke360 v1.2.4")
+                embed.set_footer(text="AntiNuke360 v1.3.0")
                 try:
                     await send_log(guild, embed=embed)
                 except Exception:
@@ -1380,7 +1596,6 @@ async def on_webhook_update(channel):
             actor_id_str = str(actor.id)
             
             if actor_id_str in bot_blacklist:
-                # 若 actor 在 anti_kick 白名單，這只適用於加入時，對行為仍需檢測
                 await take_action(guild, actor, "黑名單機器人")
                 break
             
@@ -1394,74 +1609,7 @@ async def on_webhook_update(channel):
     except Exception:
         pass
 
-# === 新增：偵測反外部應用程式刷屏 & 反被盜帳的輔助函式 ===
-
-# async def handle_external_spam(message: discord.Message, settings):
-#     """反外部應用程式刷屏：5 秒內同一頻道 3 則相同訊息"""
-#     guild = message.guild
-#     user = message.author
-#     gid = guild.id
-#     uid = user.id
-#     content = message.content
-#
-#     if not settings["enabled"]:
-#         return
-#
-#     if is_permanent_whitelisted(gid, uid):
-#         return
-#
-#     if not content:
-#         return
-#
-#     # 僅在相同頻道內計數：使用 (channel_id, content) 作為鍵
-#     content_key = (message.channel.id, content)
-#     dq = external_spam_tracker[gid][uid][content_key]
-#     now = time.time()
-#     dq.append(now)
-#     while dq and now - dq[0] > 5:
-#         dq.popleft()
-#
-#     if len(dq) >= 3:
-#         # 刪除刷屏訊息
-#         try:
-#             await message.delete()
-#         except Exception:
-#             pass
-#
-#         # 通知 log
-#         embed = discord.Embed(title="[AntiNuke360 - 外部應用程式刷屏偵測]", color=discord.Color.orange())
-#         embed.description = (
-#             f"使用者 `{user}` (ID: `{uid}`) 在 5 秒內多次發送相同訊息，疑似使用外部應用程式刷屏。\n\n"
-#             f"頻道: {message.channel.mention}\n"
-#             f"內容: ```{content[:1500]}```"
-#         )
-#         embed.set_footer(text="AntiNuke360 v1.2.3")
-#         try:
-#             await send_log(guild, embed=embed)
-#         except Exception:
-#             pass
-#
-#         timeout_seconds = settings["timeout"]
-#         if timeout_seconds <= 0:
-#             print(f"[EXTERNAL SPAM] 偵測到刷屏，但設定為不禁言 (僅刪除訊息與通知)")
-#             return
-#
-#         timeout_seconds = max(0, min(1209600, timeout_seconds))
-#         try:
-#             duration = discord.utils.utcnow() + discord.utils.timedelta(seconds=timeout_seconds)
-#         except AttributeError:
-#             # 兼容舊版本 discord.py，如果沒有 utils.timedelta
-#             from datetime import timedelta, datetime, timezone
-#             duration = datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)
-#
-#         try:
-#             await user.timeout(duration, reason="AntiNuke360: 疑似使用外部應用程式刷屏")
-#             print(f"[EXTERNAL SPAM] 已對 {user} 進行禁言 {timeout_seconds} 秒")
-#         except Exception as e:
-#             print(f"[EXTERNAL SPAM] 無法對 {user} 進行禁言: {e}")
-
 async def handle_anti_hijack(message: discord.Message):
-    """反被盜帳：5 秒內在不同頻道發送 3 次相同訊息"""
     guild = message.guild
     user = message.author
     gid = guild.id
@@ -1472,7 +1620,6 @@ async def handle_anti_hijack(message: discord.Message):
         return
 
     if is_permanent_whitelisted(gid, uid):
-        # 永久白名單只刪除詐騙訊息，但不踢出
         mode = "whitelisted"
     else:
         mode = "normal"
@@ -1483,25 +1630,20 @@ async def handle_anti_hijack(message: discord.Message):
     dq = hijack_tracker[gid][uid][content]
     now = time.time()
     dq.append((now, message.channel.id))
-    # 保留 5 秒窗口
     filtered = [(ts, cid) for (ts, cid) in dq if now - ts <= 5]
     hijack_tracker[gid][uid][content] = deque(filtered)
     channels = {cid for _, cid in filtered}
 
     if len(filtered) >= 3 and len(channels) >= 3:
-        # 刪除當前訊息
         try:
             await message.delete()
         except Exception:
             pass
 
-        # 尋找所有有 AntiNuke360 的伺服器與成員在其中的伺服器
         mutual_guilds = [g for g in bot.guilds if g.get_member(uid)]
 
-        # 為每個伺服器創建 7 天邀請連結
         invite_links = []
         for g in mutual_guilds:
-            # 找可以建立邀請的文字頻道
             target_channel = g.system_channel
             if not target_channel:
                 for ch in g.text_channels:
@@ -1517,7 +1659,6 @@ async def handle_anti_hijack(message: discord.Message):
                 print(f"[ANTI HIJACK] 無法在伺服器 {g.name} 建立邀請: {e}")
                 continue
 
-        # DM 被盜帳號
         dm_text_lines = [
             "您好，這裡是 AntiNuke360。",
             "",
@@ -1543,14 +1684,13 @@ async def handle_anti_hijack(message: discord.Message):
         except Exception as e:
             print(f"[ANTI HIJACK] 無法 DM 使用者 {user}: {e}")
 
-        # log 到當前伺服器
         embed = discord.Embed(title="[AntiNuke360 - 反被盜帳偵測]", color=discord.Color.red())
         embed.description = (
             f"使用者 `{user}` (ID: `{uid}`) 在 5 秒內於多個頻道發送相同訊息，疑似被盜帳號或發送詐騙訊息。\n\n"
             f"本頻道: {message.channel.mention}\n"
             f"訊息內容: ```{content[:1500]}```"
         )
-        embed.set_footer(text="AntiNuke360 v1.2.4")
+        embed.set_footer(text="AntiNuke360 v1.3.0")
         try:
             await send_log(guild, embed=embed)
         except Exception:
@@ -1560,7 +1700,6 @@ async def handle_anti_hijack(message: discord.Message):
             print(f"[ANTI HIJACK] {user} 為永久白名單，僅刪除訊息與通知。")
             return
 
-        # 踢出被盜帳號（在所有 mutual_guilds 中）
         for g in mutual_guilds:
             member = g.get_member(uid)
             if not member:
@@ -1582,7 +1721,6 @@ async def on_message(message):
     uid = user.id
     user_id_str = str(uid)
 
-    # 黑名單訊息屏蔽（先處理，包含機器人）
     if user_id_str in bot_blacklist and not is_anti_kick_whitelisted(gid, uid):
         try:
             await message.delete()
@@ -1594,10 +1732,6 @@ async def on_message(message):
     if user.bot:
         return
 
-    # 外部應用程式刷屏偵測
-    # await handle_external_spam(message, external_spam_settings[gid])
-
-    # 反被盜帳偵測
     await handle_anti_hijack(message)
 
     if user_id_str in bot_blacklist or user_id_str in bot_whitelist:
@@ -1749,18 +1883,15 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="伺服器永久白名單人數", value=str(perm_count), inline=False)
     has_snapshot = snapshot_is_valid(load_snapshot_file(interaction.guild.id))
     embed.add_field(name="伺服器快照", value=f"{'有有效快照' if has_snapshot else '無有效快照'}", inline=False)
-    # 新增進階保護設定狀態
-    # ext_settings = external_spam_settings[gid]
     hij_settings = anti_hijack_settings[gid]
-    # embed.add_field(name="反外部應用程式刷屏", value=f"啟用 / 禁言 {ext_settings['timeout']} 秒" if ext_settings["enabled"] else "停用", inline=False)
     embed.add_field(name="反被盜帳", value="啟用" if hij_settings["enabled"] else "停用", inline=False)
     embed.add_field(name="自訂狀態文字", value=f"已啟用 ({len(STATUS_MESSAGES)} 個，每 10 秒輪流)", inline=False)
-    embed.set_footer(text=f"AntiNuke360 {VERSION} | 防護參數已固定")
+    embed.set_footer(text=f"AntiNuke360 {VERSION} | 防護參數已固定 & Snapshot in MySQL")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="scan-blacklist", description="掃描並停權伺服器中的黑名單成員 (管理員)")
-async def scan_blacklist(interaction: discord.Interaction):
+async def scan_blacklist_cmd(interaction: discord.Interaction):
     await interaction.response.defer()
     try:
         scan_count, banned_count = await scan_and_ban_blacklist(interaction.guild)
@@ -1773,12 +1904,12 @@ async def scan_blacklist(interaction: discord.Interaction):
         embed.add_field(name="掃描人數", value=str(scan_count), inline=True)
         embed.add_field(name="停權人數", value=str(banned_count), inline=True)
         embed.add_field(name="伺服器", value=interaction.guild.name, inline=False)
-        embed.set_footer(text="AntiNuke360 v1.2.4")
+        embed.set_footer(text="AntiNuke360 v1.3.0")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="掃描失敗", color=discord.Color.red())
         embed.description = f"掃描伺服器時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2.4")
+        embed.set_footer(text="AntiNuke360 v1.3.0")
         await interaction.followup.send(embed=embed)
 
 # 臨時白名單 - 管理員可增刪
@@ -1867,7 +1998,7 @@ async def remove_server_perm(interaction: discord.Interaction, entity_id: str):
     await interaction.response.send_message(f"已從本伺服器永久白名單移除 `{entity_id}`", ephemeral=True)
 
 @bot.tree.command(name="server-whitelist", description="查看本伺服器白名單 (管理員)")
-async def server_whitelist(interaction: discord.Interaction):
+async def server_whitelist_cmd(interaction: discord.Interaction):
     gid = interaction.guild.id
     anti = server_whitelists[gid]["anti_kick"]
     temp = server_whitelists[gid]["temporary"]
@@ -1893,7 +2024,7 @@ async def server_whitelist(interaction: discord.Interaction):
             lines.append(f"  {i+1}. `{bid}`")
     embed = discord.Embed(title="本伺服器白名單狀態", color=discord.Color.blue())
     embed.description = "\n".join(lines[:30])
-    embed.set_footer(text="AntiNuke360 v1.2.4")
+    embed.set_footer(text="AntiNuke360 v1.3.0")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="set-log-channel", description="設定本伺服器的記錄頻道 (管理員)")
@@ -1901,31 +2032,12 @@ async def server_whitelist(interaction: discord.Interaction):
 @app_commands.describe(channel="記錄頻道（提及頻道或 ID）")
 async def set_log_channel(interaction: discord.Interaction, channel: discord.TextChannel = None):
     if channel is None:
-        # 清除 log channel
         set_log_channel_for_guild(interaction.guild.id, None)
         await interaction.response.send_message("已清除記錄頻道設定，未來會私訊伺服器擁有者與管理員。", ephemeral=True)
         return
     set_log_channel_for_guild(interaction.guild.id, channel.id)
     await interaction.response.send_message(f"已將 {channel.mention} 設為記錄頻道。", ephemeral=True)
 
-# === 新增：設定反外部應用程式刷屏禁言時間 ===
-# @app_commands.checks.has_permissions(administrator=True)
-# @bot.tree.command(name="set-external-spam", description="設定反外部應用程式刷屏禁言秒數 (管理員)")
-# @app_commands.describe(timeout_seconds="禁言秒數 (0=不禁言, 1~1209600)")
-# async def set_external_spam(interaction: discord.Interaction, timeout_seconds: int):
-#     gid = interaction.guild.id
-#     if timeout_seconds < 0 or timeout_seconds > 1209600:
-#         await interaction.response.send_message("秒數需介於 0~1209600 之間。", ephemeral=True)
-#         return
-#     external_spam_settings[gid]["enabled"] = True
-#     external_spam_settings[gid]["timeout"] = timeout_seconds
-#     if timeout_seconds == 0:
-#         msg = "已設定為只刪除刷屏訊息並通知 log，不會禁言。"
-#     else:
-#         msg = f"已設定為偵測到刷屏後禁言 {timeout_seconds} 秒。"
-#     await interaction.response.send_message(msg, ephemeral=True)
-
-# === 新增：開關反被盜帳功能 ===
 @app_commands.checks.has_permissions(administrator=True)
 @bot.tree.command(name="toggle-anti-hijack", description="開啟或關閉反被盜帳功能 (管理員)")
 @app_commands.describe(mode="輸入 on 或 off")
@@ -1959,7 +2071,7 @@ async def add_black(interaction: discord.Interaction, bot_id: str, reason: str =
         "以避免未來被自動停權。"
     )
     embed.add_field(name="原因", value=reason if reason else "無", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.4")
+    embed.set_footer(text="AntiNuke360 v1.3.0")
     await interaction.followup.send(embed=embed)
     await scan_blacklist_all_guilds()
 
@@ -2013,7 +2125,7 @@ async def remove_white(interaction: discord.Interaction, bot_id: str):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="blacklist", description="查看全域黑名單 (開發者)")
-async def blacklist(interaction: discord.Interaction):
+async def blacklist_cmd(interaction: discord.Interaction):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
@@ -2027,7 +2139,7 @@ async def blacklist(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.4")
+    embed.set_footer(text="AntiNuke360 v1.3.0")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="whitelist-list", description="查看全域白名單 (開發者)")
@@ -2045,11 +2157,11 @@ async def whitelist_list(interaction: discord.Interaction):
     embed.description = "\n".join(lines[:10])
     if len(lines) > 10:
         embed.add_field(name="提示", value=f"還有 {len(lines) - 10} 個機器人未顯示", inline=False)
-    embed.set_footer(text="AntiNuke360 v1.2.4")
+    embed.set_footer(text="AntiNuke360 v1.3.0")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="scan-all-guilds", description="在所有伺服器掃描並停權黑名單成員 (開發者)")
-async def scan_all_guilds(interaction: discord.Interaction):
+async def scan_all_guilds_cmd(interaction: discord.Interaction):
     if interaction.user.id != DEVELOPER_ID:
         await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
@@ -2062,12 +2174,12 @@ async def scan_all_guilds(interaction: discord.Interaction):
             "若您希望在特定伺服器中允許某些黑名單帳號，"
             "可於該伺服器使用 `/add-server-anti-kick` 將其加入防踢白名單，以避免未來的自動停權。"
         )
-        embed.set_footer(text="AntiNuke360 v1.2.4")
+        embed.set_footer(text="AntiNuke360 v1.3.0")
         await interaction.followup.send(embed=embed)
     except Exception as e:
         embed = discord.Embed(title="全域掃描失敗", color=discord.Color.red())
         embed.description = f"掃描時出錯: {str(e)}"
-        embed.set_footer(text="AntiNuke360 v1.2.4")
+        embed.set_footer(text="AntiNuke360 v1.3.0")
         await interaction.followup.send(embed=embed)
 
 @app_commands.checks.has_permissions(administrator=True)
@@ -2090,6 +2202,49 @@ async def restore_snapshot_command(interaction: discord.Interaction):
         await interaction.followup.send(f"還原完成: {msg}", ephemeral=True)
     else:
         await interaction.followup.send(f"還原失敗: {msg}", ephemeral=True)
+
+# === 新增：查詢某 ID 是否在黑名單 / 白名單的指令 ===
+
+@bot.tree.command(name="check-black", description="查詢某個 ID 是否在全域黑名單或白名單 (管理員)")
+@app_commands.describe(entity_id="使用者或機器人 ID（純數字）")
+async def check_black(interaction: discord.Interaction, entity_id: str):
+    await interaction.response.defer(ephemeral=True)
+    target_id = entity_id.strip()
+    info_black = bot_blacklist.get(target_id)
+    info_white = bot_whitelist.get(target_id)
+
+    if not info_black and not info_white:
+        embed = discord.Embed(title="查詢結果", color=discord.Color.green())
+        embed.description = f"ID `{target_id}` 不在全域黑名單，也不在全域白名單。"
+        embed.set_footer(text="AntiNuke360 v1.3.0")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        return
+
+    embed = discord.Embed(title="查詢結果", color=discord.Color.orange())
+    lines = []
+    if info_black:
+        lines.append("**黑名單**：")
+        lines.append(f"- 名稱：`{info_black.get('name', target_id)}`")
+        lines.append(f"- 原因：{info_black.get('reason', '無')}")
+        ts = info_black.get("timestamp")
+        if ts:
+            lines.append(f"- 加入時間 (timestamp)：`{ts}`")
+        guilds = info_black.get("guilds_detected", [])
+        if guilds:
+            lines.append(f"- 偵測伺服器 ID 列表：`{', '.join(str(x) for x in guilds)}`")
+        lines.append("")
+
+    if info_white:
+        lines.append("**白名單**：")
+        lines.append(f"- 名稱：`{info_white.get('name', target_id)}`")
+        lines.append(f"- 原因：{info_white.get('reason', '無')}")
+        tsw = info_white.get("timestamp")
+        if tsw:
+            lines.append(f"- 加入時間 (timestamp)：`{tsw}`")
+
+    embed.description = "\n".join(lines)
+    embed.set_footer(text="AntiNuke360 v1.3.0")
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 @bot.tree.error
 async def on_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
