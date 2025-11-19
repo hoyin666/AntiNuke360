@@ -3,29 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AntiNuke360 v1.2.4 - 高效反制Nuke機器人+被盜帳號">
-    <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore">
+    <meta name="description" content="AntiNuke360 v1.3.0 - 高效反制Nuke機器人+被盜帳號，支援 MySQL 資料儲存與快照還原">
+    <meta name="keywords" content="Discord, Bot, Security, Anti-Nuke, Protection, Snapshot, Restore, MySQL">
     
     <!-- Open Graph Meta Tags for Link Preview -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="AntiNuke360 v1.2.4 - 你的反核+反盜帳助手">
-    <meta property="og:description" content="永久免費、永久開源的 Discord 高效反Nuke機器人">
-    <!-- 建議改為「完整 HTTPS 絕對路徑」，確保 Discord 能抓到預覽圖片 -->
-    <!-- 將 example.com 換成你實際的網域 -->
+    <meta property="og:title" content="AntiNuke360 v1.3.0 - 你的反核+反盜帳助手（MySQL版）">
+    <meta property="og:description" content="永久免費、永久開源的 Discord 高效反Nuke機器人，支援 MySQL 快照儲存與全域黑名單。">
     <meta property="og:image" content="https://image.starfall.dpdns.org/file/AgACAgUAAyEGAASsg8WbAAMgaRyi-oBcc9HT_Zqy9Zr87ektpK4AAkcMaxtOp-BU5vPpEe4AAWXcAQADAgADdwADNgQ.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <!-- 同樣建議使用絕對網址 -->
     <meta property="og:url" content="https://image.starfall.dpdns.org/file/AgACAgUAAyEGAASsg8WbAAMgaRyi-oBcc9HT_Zqy9Zr87ektpK4AAkcMaxtOp-BU5vPpEe4AAWXcAQADAgADdwADNgQ.jpg">
     <meta property="og:site_name" content="AntiNuke360">
     
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="AntiNuke360 v1.2.4 - 你的反核+反盜帳助手">
-    <meta name="twitter:description" content="永久免費、永久開源的 Discord 高效反Nuke機器人">
+    <meta name="twitter:title" content="AntiNuke360 v1.3.0 - 你的反核+反盜帳助手（MySQL版）">
+    <meta name="twitter:description" content="永久免費、永久開源的 Discord 高效反Nuke機器人，支援 MySQL。">
     <meta name="twitter:image" content="https://image.starfall.dpdns.org/file/AgACAgUAAyEGAASsg8WbAAMgaRyi-oBcc9HT_Zqy9Zr87ektpK4AAkcMaxtOp-BU5vPpEe4AAWXcAQADAgADdwADNgQ.jpg">
     
-    <title>AntiNuke360 v1.2.4 - 你的反核+反盜帳助手</title>
+    <title>AntiNuke360 v1.3.0 - 你的反核+反盜帳助手（MySQL版）</title>
     <style>
         * {
             margin: 0;
@@ -331,6 +328,10 @@
             background: #10b981;
         }
 
+        .badge.mysql {
+            background: #0ea5e9;
+        }
+
         .button-group {
             display: flex;
             gap: 12px;
@@ -554,8 +555,8 @@
 <body>
     <header>
         <h1>AntiNuke360</h1>
-        <div class="version">v1.2.4 - 最新版本</div>
-        <p>永久免費、永久開源的 Discord 高效反Nuke機器人</p>
+        <div class="version">v1.3.0 - 最新版本（MySQL 支援）</div>
+        <p>永久免費、永久開源的 Discord 高效反Nuke機器人（黑白名單與快照皆儲存在 MySQL）</p>
     </header>
 
     <nav>
@@ -584,7 +585,7 @@
     <section id="intro">
         <div class="glass-panel">
             <h2>介紹</h2>
-            <p>AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對核打擊 (Nuke) 攻擊與被盜帳號行為進行防禦。</p>
+            <p>AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對核打擊 (Nuke) 攻擊與被盜帳號行為進行防禦。自 v1.3.0 起，核心資料與伺服器快照全面改用 MySQL 儲存，更安全與穩定。</p>
             <p>完全開源、完全免費、100%透明。</p>
 
             <div class="stats">
@@ -618,12 +619,12 @@
                     <p>持續監控大量刪除頻道、踢出成員等異常行為，在 10 秒內自動識別並阻止攻擊。</p>
                 </div>
                 <div class="feature-card">
-                    <h3>伺服器快照系統</h3>
-                    <p>自動建立伺服器結構快照，遭受攻擊後可完全還原。快照保留 72 小時。</p>
+                    <h3>伺服器快照系統（MySQL）<span class="badge mysql">v1.3.0</span></h3>
+                    <p>自動建立伺服器結構快照，遭受攻擊後可完全還原。快照 JSON 儲存在 MySQL 的 <code>snapshots</code> 資料表中，保留 72 小時。</p>
                 </div>
                 <div class="feature-card">
                     <h3>三層白名單系統</h3>
-                    <p>防踢白名單、臨時白名單、永久白名單，區分管理員和擁有者權限，防止濫用。</p>
+                    <p>防踢白名單、臨時白名單、永久白名單，區分管理員和擁有者權限，防止濫用。資料儲存在 <code>server_whitelist</code> 表。</p>
                 </div>
                 <div class="feature-card">
                     <h3>全域黑名單系統</h3>
@@ -673,9 +674,20 @@
                     <h3>歡迎頻道自動重試<span class="badge new">v1.2.4</span></h3>
                     <p>加入伺服器時若建立歡迎頻道失敗，會每分鐘重試一次，直到建立成功或 Bot 自動離開伺服器。</p>
                 </div>
+                <div class="feature-card">
+                    <h3>MySQL 資料儲存<span class="badge mysql">v1.3.0</span></h3>
+                    <p>全域黑名單、全域白名單、本地伺服器白名單、guild 資訊與快照全部改用 MySQL 儲存，安全性與穩定性大幅提升。</p>
+                </div>
             </div>
 
-            <h3 style="margin-top: 32px;">v1.2.4 核心改進</h3>
+            <h3 style="margin-top: 32px;">v1.3.0 核心改進</h3>
+            <ul>
+                <li><strong>MySQL 全面導入</strong>：黑名單、白名單、伺服器白名單、guild 資訊與快照統一存放於 MySQL。</li>
+                <li><strong>快照進階儲存</strong>：伺服器結構快照以 JSON 格式存放於 <code>snapshots</code> 資料表，不再依賴本機檔案。</li>
+                <li><strong>`/check-black` 指令</strong>：可快速查詢任意 ID 是否在全域黑名單 / 白名單，方便管理與調試。</li>
+            </ul>
+
+            <h3 style="margin-top: 24px;">v1.2.4 核心改進</h3>
             <ul>
                 <li><strong>日誌頻道私訊註記</strong>：當在私訊中收到 AntiNuke360 的重要通知時，會清楚標明「若在私訊看到此訊息，代表伺服器尚未設定日誌頻道」，協助管理員快速定位問題。</li>
                 <li><strong>黑名單停權引導</strong>：掃描並停權黑名單成員時，會於通知中加入 <code>/add-server-anti-kick</code> 說明，避免對可信任帳號造成干擾。</li>
@@ -693,19 +705,27 @@
                 <li>Python 3.8 或更高版本</li>
                 <li>discord.py</li>
                 <li>python-dotenv</li>
+                <li>MySQL 或 MariaDB 資料庫（可使用主機商提供的 DB）</li>
             </ul>
 
             <h3>安裝步驟</h3>
             <ol>
                 <li>複製倉庫或下載程式碼。</li>
-                <li>建立 <code>.env</code> 檔案並設置 Discord Bot Token：
-                    <pre><code>DISCORD_TOKEN=your_discord_bot_token_here</code></pre>
+                <li>建立 <code>.env</code> 檔案並設置 Discord Bot Token 與 MySQL 連線資訊：
+                    <pre><code>DISCORD_TOKEN=your_discord_bot_token_here
+
+MYSQL_HOST=your_mysql_host_or_container_name
+MYSQL_PORT=3306
+MYSQL_USER=your_mysql_user
+MYSQL_PASSWORD=your_mysql_password
+MYSQL_DB=your_mysql_database</code></pre>
                 </li>
                 <li>安裝依賴：
                     <pre><code>pip install -r requirements.txt</code></pre>
                 </li>
-                <li>啟動機器人 (v1.2.4)：
-                    <pre><code>python AntiNuke360_v1.2.4.py</code></pre>
+                <li>（可選）先執行資料轉移/建表腳本，將舊版 JSON 轉入 MySQL。</li>
+                <li>啟動機器人 (v1.3.0)：
+                    <pre><code>python AntiNuke360_v1.3.py</code></pre>
                 </li>
             </ol>
 
@@ -730,22 +750,22 @@
             <h2>管理員指令</h2>
 
             <h3>/status</h3>
-            <p>查看 AntiNuke360 的當前運行狀態、防護參數與統計。</p>
+            <p>查看 AntiNuke360 的當前運行狀態、防護參數與統計，包含是否有可用快照與反被盜帳狀態。</p>
 
             <h3>/scan-blacklist</h3>
             <p>掃描伺服器內所有成員，並停權全域黑名單中的成員。需要管理員權限。若要在本伺服器允許特定黑名單帳號，可請伺服器擁有者使用 <code>/add-server-anti-kick</code> 將其加入防踢白名單。</p>
 
             <h3>/restore-snapshot</h3>
-            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限。</p>
+            <p>手動還原伺服器最新的快照。還原所有角色、分類、頻道、權限設定。需要管理員權限，快照有效期為 72 小時。</p>
 
             <h3>/add-server-temp [ID]</h3>
-            <p>將機器人加入臨時白名單 (1 小時自動過期)。需要管理員權限。</p>
+            <p>將機器人或成員加入臨時白名單 (1 小時自動過期)。需要管理員權限。臨時白名單成員在敏感操作上享有較寬鬆的限制。</p>
 
             <h3>/remove-server-temp [ID]</h3>
-            <p>從臨時白名單移除機器人。需要管理員權限。</p>
+            <p>從臨時白名單移除機器人或成員。需要管理員權限。</p>
 
             <h3>/server-whitelist</h3>
-            <p>查看本伺服器的白名單狀態 (防踢、臨時、永久)。需要管理員權限。</p>
+            <p>查看本伺服器的白名單狀態 (防踢、臨時、永久)，以及臨時白名單的剩餘時間。需要管理員權限。</p>
 
             <h3>/set-log-channel [#channel]</h3>
             <p>設置本伺服器的記錄頻道。所有防護事件都會記錄在此。若未設定，重要事件將以私訊方式傳送並附註說明。需要管理員權限。</p>
@@ -766,12 +786,46 @@
 
             <h3>/remove-server-perm [ID]</h3>
             <p>從永久白名單移除機器人或成員。</p>
+
+            <h3 style="margin-top: 24px;">開發者指令</h3>
+
+            <h3>/add-black [ID] [原因]</h3>
+            <p>將機器人加入全域黑名單，並在所有伺服器掃描與停權。</p>
+
+            <h3>/remove-black [ID]</h3>
+            <p>從全域黑名單移除機器人。</p>
+
+            <h3>/add-white [ID] [原因]</h3>
+            <p>將機器人加入全域白名單，使其在所有伺服器中豁免。</p>
+
+            <h3>/remove-white [ID]</h3>
+            <p>從全域白名單移除指定機器人。</p>
+
+            <h3>/blacklist</h3>
+            <p>查看全域黑名單前 10 筆紀錄。</p>
+
+            <h3>/whitelist-list</h3>
+            <p>查看全域白名單前 10 筆紀錄。</p>
+
+            <h3>/scan-all-guilds</h3>
+            <p>在所有伺服器中掃描並停權黑名單成員。</p>
+
+            <h3>/check-black [ID]<span class="badge new">v1.3.0</span></h3>
+            <p>查詢某個 ID 是否在全域黑名單或白名單，會顯示名稱、原因、timestamp 與偵測伺服器（若有）。</p>
         </div>
     </section>
 
     <section id="faq">
         <div class="glass-panel">
             <h2>常見問題</h2>
+
+            <h3>v1.3.0 新增了什麼？</h3>
+            <p>v1.3.0 為一次架構級更新：</p>
+            <ul>
+                <li>黑名單、白名單、本地伺服器白名單、guild 資訊與伺服器快照全部移至 MySQL 儲存，提升穩定與一致性。</li>
+                <li>快照改存於 <code>snapshots</code> 資料表，不再使用本機 JSON 檔案。</li>
+                <li>新增 <code>/check-black</code> 指令，可方便查詢任意 ID 是否在黑/白名單中。</li>
+            </ul>
 
             <h3>v1.2.4 新增了什麼？</h3>
             <p>v1.2.4 聚焦於實務使用的細節優化：</p>
@@ -796,11 +850,11 @@
             <h3>可以關閉反被盜帳功能嗎？</h3>
             <p>可以。使用 <code>/toggle-anti-hijack off</code> 指令關閉反被盜帳功能。預設是啟用的。</p>
 
-            <h3>v1.2 修復了什麼 0day 漏洞？</h3>
-            <p>v1.2 修復了一個重要的安全漏洞：任何管理員都可以將任何機器人加入伺服器白名單，導致被白名單的機器人可以進行任何操作而不觸發警報。v1.2 實現了三層白名單系統，區分了管理員和擁有者的權限，防止濫用。</p>
+            <h3>三層白名單是在解決什麼問題？</h3>
+            <p>v1.2 修復了一個重要的安全風險：若只有單一白名單層級，任何管理員都可以讓惡意機器人繞過防護。三層設計將「允許加入、不踢出、完全免疫」清楚分開，並限制關鍵權限只能由伺服器擁有者調整。</p>
 
             <h3>快照會保留多久？</h3>
-            <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照會自動清理。</p>
+            <p>每個伺服器的快照保留 72 小時（3 天）。超過 72 小時的快照視為失效，不再允許還原。</p>
 
             <h3>AntiNuke360 是完全免費嗎？</h3>
             <p>是。AntiNuke360 永久免費，亦永久開源，不會收取任何費用。</p>
@@ -826,7 +880,7 @@
                 <li>開發者 Discord ID：800536911378251787</li>
                 <li>授權條款：MIT License</li>
                 <li>主要語言：Python</li>
-                <li>目前版本：v1.2.4（2025 年 11 月）</li>
+                <li>目前版本：v1.3.0（2025 年 11 月）</li>
             </ul>
         </div>
     </section>
@@ -837,7 +891,7 @@
             <a href="Terms_of_Service.html">服務條款</a>
             <a href="https://github.com/hoyin666/AntiNuke360">GitHub</a>
         </div>
-        AntiNuke360 v1.2.4 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License
+        AntiNuke360 v1.3.0 · 永久免費、永久開源的 Discord 伺服器防護機制 · MIT License · 使用 MySQL 儲存黑白名單與快照
     </footer>
 
     <script>
