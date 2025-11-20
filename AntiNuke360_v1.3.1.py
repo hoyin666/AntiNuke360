@@ -25,7 +25,7 @@ GUILDS_FILE = "guilds_data.json"
 
 SNAPSHOT_DIR = Path("snapshots")
 SNAPSHOT_TTL_SECONDS = 72 * 3600  # 72 hours
-VERSION = "v1.3.0"  # 版本號
+VERSION = "v1.3.1"  # 版本號
 
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
@@ -105,6 +105,11 @@ STATUS_MESSAGES = [
     "洋蔥女裝：來都來了",
     "你們都是佬🛐"
 ]
+
+# 全服公告常數與排程
+ANNOUNCEMENT_WAIT_TIMEOUT = 12 * 3600  # 12 小時等待最新管理員上線
+ANNOUNCEMENT_CHECK_INTERVAL = 60  # 每次檢查間隔（秒）
+pending_announcement_tasks = set()  # 儲存等待 DM 的 asyncio task
 
 # ========== MySQL 連線 & SQL 存取函式 ==========
 
@@ -1196,672 +1201,98 @@ async def send_log(guild: discord.Guild, content: str = None, embed: discord.Emb
             continue
     return sent
 
-async def track_action(guild, user, action_type):
-    if guild is None or user is None:
-        return False
-    if user.id == guild.owner_id:
-        return False
-    if is_permanent_whitelisted(guild.id, user.id):
-        return False
-    purge_expired_temporary(guild.id)
-    if user.id in whitelisted_users[guild.id]:
-        return False
-    if str(user.id) in bot_whitelist:
-        return False
+def build_announcement_embed(message: str, sender_display: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="[AntiNuke360 全服公告]",
+        description=message,
+        color=discord.Color.gold()
+    )
+    embed.add_field(name="發布者", value=sender_display, inline=False)
+    embed.set_footer(text=f"AntiNuke360 {VERSION}")
+    return embed
 
-    now = time.time()
-    if action_type in SENSITIVE_ACTIONS and is_temporary_whitelisted(guild.id, user.id):
-        max_count = TEMP_WHITELIST_MAX
-        window = TEMP_WHITELIST_WINDOW
-    else:
-        max_count = PROTECTION_CONFIG["max_actions"]
-        window = PROTECTION_CONFIG["window_seconds"]
+def get_admin_candidates(guild: discord.Guild):
+    candidates = []
+    seen = set()
+    owner = guild.owner
+    if owner and not owner.bot:
+        candidates.append(owner)
+        seen.add(owner.id)
+    for member in guild.members:
+        if member.bot or member.id in seen:
+            continue
+        perms = member.guild_permissions
+        if perms.administrator or perms.manage_guild:
+            candidates.append(member)
+            seen.add(member.id)
+    return candidates
 
-    actions = user_actions[guild.id][user.id][action_type]
-    actions.append(now)
-    while actions and now - actions[0] > window:
-        actions.popleft()
-    current_count = len(actions)
-    if current_count > max_count:
+def member_is_online(member: discord.Member) -> bool:
+    status = getattr(member, "status", discord.Status.offline)
+    return status not in (discord.Status.offline, discord.Status.invisible, None)
+
+async def try_send_announcement_to_log(guild: discord.Guild, message: str, sender_display: str) -> bool:
+    log_ch_id = get_log_channel_for_guild(guild.id)
+    if not log_ch_id:
+        return False
+    channel = guild.get_channel(log_ch_id)
+    if not isinstance(channel, discord.TextChannel):
+        return False
+    if not channel.permissions_for(guild.me).send_messages:
+        return False
+    try:
+        await channel.send(embed=build_announcement_embed(message, sender_display))
+        print(f"[ANNOUNCE] 已在伺服器 {guild.name} 的日誌頻道發布公告")
         return True
-    return False
-
-async def take_action(guild, user, reason):
-    global bot_blacklist, notified_bans
-    gid = guild.id
-    uid = user.id
-
-    if uid in banned_in_session[guild.id]:
-        return
-
-    print(f"[ACTION] 開始處理 {user} (ID: {uid})")
-    try:
-        await guild.ban(user, reason=f"AntiNuke360: {reason}")
-        banned_in_session[guild.id].add(uid)
-        print(f"[BAN] 成功封鎖 {user}")
-
-        if user.bot:
-            user_id_str = str(uid)
-            if user_id_str not in bot_blacklist:
-                bot_blacklist[user_id_str] = {
-                    "name": str(user),
-                    "reason": reason,
-                    "timestamp": time.time(),
-                    "guilds_detected": [gid]
-                }
-            else:
-                if gid not in bot_blacklist[user_id_str]["guilds_detected"]:
-                    bot_blacklist[user_id_str]["guilds_detected"].append(gid)
-            save_blacklist(bot_blacklist)
-            print(f"[BLACKLIST] 已將 {user} 加入全域黑名單")
-            await scan_blacklist_all_guilds()
-
-        if uid not in notified_bans[gid] and guild.owner:
-            notified_bans[gid].add(uid)
-            embed = discord.Embed(title="[AntiNuke360 警報]", color=discord.Color.red())
-            embed.description = (
-                f"使用者 `{user}` (ID: `{uid}`) 已在伺服器 `{guild.name}` 被自動封鎖。\n\n"
-                f"原因: {reason}\n\n"
-                "若此帳號在本伺服器是被允許的，伺服器擁有者可以使用 `/add-server-anti-kick` 指令\n"
-                "將其加入本伺服器的防踢白名單，以避免未來再度因黑名單或異常行為被自動封鎖。"
-            )
-            embed.add_field(name="伺服器", value=guild.name, inline=True)
-            embed.add_field(name="伺服器 ID", value=str(gid), inline=True)
-            embed.set_footer(text="AntiNuke360 v1.3.0")
-            try:
-                await send_log(guild, embed=embed)
-            except Exception:
-                pass
-    except discord.Forbidden as e:
-        print(f"[BAN ERROR] 權限不足: {e}")
-        permission_errors[gid].append(time.time())
-        await check_permission_errors(guild)
     except Exception as e:
-        print(f"[BAN ERROR] 封鎖失敗: {e}")
+        print(f"[ANNOUNCE ERROR] 無法在伺服器 {guild.name} 的日誌頻道發送公告: {e}")
+        return False
 
-async def scan_blacklist_all_guilds():
-    print("[SCAN] 開始在所有伺服器中掃描黑名單成員")
-    total_scanned = 0
-    total_banned = 0
-    for guild in bot.guilds:
-        try:
-            scan_count, banned_count = await scan_and_ban_blacklist(guild)
-            total_scanned += scan_count
-            total_banned += banned_count
-        except Exception as e:
-            print(f"[SCAN ERROR] 無法掃描伺服器 {guild.name}: {e}")
-    print(f"[SCAN] 全部伺服器掃描完成 - 共掃描 {total_scanned} 人，停權 {total_banned} 人")
-
-async def send_welcome_message(guild):
+async def dm_guild_member(member: discord.Member, message: str, sender_display: str) -> bool:
     try:
-        if not guild.me.guild_permissions.manage_channels:
-            print(f"[WELCOME] 無法創建頻道: 權限不足")
-            return
-        
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(send_messages=False),
-            guild.me: discord.PermissionOverwrite(send_messages=True)
-        }
-        
-        channel = await guild.create_text_channel(
-            "antinuke360-welcome",
-            overwrites=overwrites,
-            reason="AntiNuke360 自動設置"
-        )
-        
-        data = load_guilds_data()
-        if str(guild.id) not in data:
-            data[str(guild.id)] = {"joined_at": time.time(), "welcome_channel_id": channel.id}
-        else:
-            data[str(guild.id)]["welcome_channel_id"] = channel.id
-        save_guilds_data(data)
-        
-        embed = discord.Embed(
-            title="歡迎使用 AntiNuke360",
-            description="感謝你將 AntiNuke360 加入此伺服器！",
-            color=discord.Color.blurple()
-        )
-        embed.add_field(
-            name="功能介紹",
-            value="""AntiNuke360 是一個強大的伺服器防護機器人，提供以下功能：
-
-自動 Nuke 攻擊防護
-- 偵測大量刪除頻道
-- 偵測大量發送訊息
-- 偵測大量建立 Webhook
-- 偵測大量踢出成員
-- 偵測大量建立角色
-
-全域黑名單系統
-- 自動識別已知的惡意機器人
-- 在試圖加入時立即封鎖
-- 支援手動掃描並停權黑名單成員
-
-本地白名單系統 (新增)
-- 分為：防踢白名單 / 臨時白名單 / 永久白名單
-- 防踢白名單：允許被列入全域黑名單的帳號/機器人加入此伺服器（僅限伺服器擁有者管理）
-- 臨時白名單：在 1 小時內對敏感操作放寬至 15 次 / 15 秒（管理員可增刪）
-- 永久白名單：對敏感操作完全免疫，無時間限制（僅限伺服器擁有者管理）
-
-固定防護參數
-- 最優的靈敏度設置
-- 無法調整(確保一致性)
-
-進階保護 (v1.2.3)
-- 黑名單訊息即時屏蔽（非防踢白名單）
-- 反外部應用程式刷屏（5 秒內 3 則相同訊息，支援禁言設定）
-- 反被盜帳（5 秒內在不同頻道發送 3 次相同訊息，DM 邀請 + 踢出/只刪訊息）""",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="使用指南",
-            value="""管理員指令:
-/status - 查看防護狀態
-/add-server-temp [ID] - 將成員或機器人加入本伺服器臨時白名單 (管理員，可移除)
-/remove-server-temp [ID]
-/set-log-channel [#channel] - 指定記錄頻道 (管理員)
-/toggle-anti-hijack [on/off] - 開啟或關閉反被盜帳功能 (管理員)
-
-伺服器擁有者指令:
-/add-server-anti-kick [ID] - 防踢白名單 (僅擁有者)
-/remove-server-anti-kick [ID]
-/add-server-perm [ID] - 永久白名單 (僅擁有者)
-/remove-server-perm [ID]
-
-開發者指令:
-/add-black [ID] [原因] - 加入全域黑名單
-/remove-black [ID] - 移除全域黑名單
-/add-white [ID] [原因] - 加入全域白名單
-/remove-white [ID] - 移除全域白名單
-/blacklist - 查看全域黑名單
-/whitelist-list - 查看全域白名單
-/scan-all-guilds - 在所有伺服器掃描並停權黑名單成員
-
-還原快照:
-/restore-snapshot - 還原伺服器快照 (管理員)""",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="防護參數 (固定)",
-            value=f"""最大動作次數: {PROTECTION_CONFIG['max_actions']}
-時間窗口: {PROTECTION_CONFIG['window_seconds']} 秒
-狀態: 啟用
-
-參數已優化，無法調整""",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="遇到問題？",
-            value="如有任何問題或建議，請聯繫伺服器管理員或機器人開發者。",
-            inline=False
-        )
-        
-        embed.set_footer(text="AntiNuke360 v1.3.0 | 伺服器防護專家（Snapshot 已存於 MySQL）")
-        
-        await channel.send(embed=embed)
-        print(f"[WELCOME] 已在伺服器 {guild.name} 創建歡迎頻道")
-        
+        dm = await member.create_dm()
+        await dm.send(embed=build_announcement_embed(message, sender_display))
+        print(f"[ANNOUNCE] 已私訊管理員 {member} 發送公告")
+        return True
     except Exception as e:
-        print(f"[WELCOME ERROR] 創建歡迎訊息失敗: {e}")
+        print(f"[ANNOUNCE ERROR] 無法私訊管理員 {member}: {e}")
+        return False
 
-@bot.event
-async def on_guild_join(guild):
-    print(f"[JOIN] 已加入新伺服器: {guild.name} (ID: {guild.id})")
-    add_to_guilds_data(guild.id)
-    if guild.id not in server_whitelists:
-        server_whitelists[guild.id] = {"anti_kick": set(), "temporary": {}, "permanent": set(), "log_channel": None}
-        save_server_whitelist()
-    await send_welcome_message(guild)
+def schedule_admin_wait_task(guild_id: int, message: str, sender_display: str):
+    task = asyncio.create_task(wait_for_admin_and_dm(guild_id, message, sender_display))
+    pending_announcement_tasks.add(task)
+    task.add_done_callback(lambda t: pending_announcement_tasks.discard(t))
 
-    async def delayed_admin_check(g: discord.Guild):
-        try:
-            await asyncio.sleep(600)
-            if g not in bot.guilds:
-                return
-            me = g.me
-            if not me or not me.guild_permissions.administrator:
-                print(f"[PERMISSION CHECK] 在伺服器 {g.name} 中 10 分鐘後仍沒有 Administrator 權限，將通知並自動離開")
-
-                recipients = []
-                owner = g.owner
-                if owner:
-                    recipients.append(owner)
-
-                admins = [m for m in g.members if m.guild_permissions.administrator and not m.bot]
-
-                status_priority = {"online": 0, "idle": 1, "dnd": 2, "offline": 3, None: 3}
-                def admin_sort_key(m):
-                    st = getattr(m, "status", None)
-                    pr = status_priority.get(str(st), 3)
-                    joined = m.joined_at.timestamp() if m.joined_at else 0
-                    return (pr, -joined)
-
-                admins_sorted = sorted(admins, key=admin_sort_key)
-
-                for a in admins_sorted:
-                    if a not in recipients:
-                        recipients.append(a)
-                    if len(recipients) >= 6:
-                        break
-
-                text = (
-                    f"您好，這裡是 **AntiNuke360 {VERSION}**。\n\n"
-                    "機器人需要 **Administrator** 權限才能正常運作，包含偵測與阻止 nuke 攻擊、封鎖黑名單機器人，"
-                    "以及在伺服器遭受破壞時進行自動還原等功能。\n\n"
-                    "目前我在此伺服器中沒有 **Administrator** 權限，因此將自動離開。\n"
-                    "請在重新邀請本機器人時，勾選 **Administrator** 權限。\n\n"
-                    "若您是在私訊中看到此訊息，代表本伺服器尚未設定 AntiNuke360 的日誌頻道。"
-                )
-
-                for r in recipients:
-                    try:
-                        dm = await r.create_dm()
-                        await dm.send(text)
-                    except Exception:
-                        continue
-
-                try:
-                    await g.leave()
-                    print(f"[PERMISSION CHECK] 已因缺少 Administrator 權限離開伺服器: {g.name}")
-                except Exception as e:
-                    print(f"[PERMISSION CHECK ERROR] 無法離開伺服器 {g.name}: {e}")
-        except Exception as e:
-            print(f"[PERMISSION CHECK ERROR] 在 on_guild_join 延遲檢查 Administrator 權限時發生錯誤: {e}")
-
-    asyncio.create_task(delayed_admin_check(guild))
-
-    async def retry_welcome_channel(g: discord.Guild):
-        try:
-            while True:
-                if g not in bot.guilds:
-                    print(f"[WELCOME RETRY] Bot 已不在伺服器 {g.name} 中，停止重試創建歡迎頻道")
-                    return
-
-                data = load_guilds_data()
-                info = data.get(str(g.id), {})
-                welcome_id = info.get("welcome_channel_id")
-                has_welcome = False
-                if welcome_id:
-                    ch = g.get_channel(welcome_id)
-                    if isinstance(ch, discord.TextChannel):
-                        has_welcome = True
-
-                if has_welcome:
-                    print(f"[WELCOME RETRY] 已確認伺服器 {g.name} 擁有歡迎頻道，停止重試")
-                    return
-
-                print(f"[WELCOME RETRY] 伺服器 {g.name} 尚未成功建立歡迎頻道，嘗試重新建立...")
-                await send_welcome_message(g)
-
-                data = load_guilds_data()
-                info = data.get(str(g.id), {})
-                welcome_id = info.get("welcome_channel_id")
-                has_welcome = False
-                if welcome_id:
-                    ch = g.get_channel(welcome_id)
-                    if isinstance(ch, discord.TextChannel):
-                        has_welcome = True
-
-                if has_welcome:
-                    print(f"[WELCOME RETRY] 已在伺服器 {g.name} 成功建立歡迎頻道 (重試)")
-                    return
-
-                await asyncio.sleep(60)
-        except Exception as e:
-            print(f"[WELCOME RETRY ERROR] 在重試建立歡迎頻道時發生錯誤 (伺服器: {g.name}): {e}")
-
-    asyncio.create_task(retry_welcome_channel(guild))
-
-@bot.event
-async def on_guild_remove(guild):
-    print(f"[LEAVE] 已從伺服器移除: {guild.name} (ID: {guild.id})")
-    remove_from_guilds_data(guild.id)
-    if guild.id in server_whitelists:
-        del server_whitelists[guild.id]
-        save_server_whitelist()
-    if guild.id in permission_errors:
-        del permission_errors[guild.id]
-
-@bot.event
-async def on_member_join(member):
-    guild = member.guild
-    user_id_str = str(member.id)
-    
-    if member.bot:
-        try:
-            await create_snapshot(guild)
-        except Exception as e:
-            print(f"[SNAPSHOT ERROR] 建立快照時發生錯誤: {e}")
-    
-    if user_id_str in bot_blacklist:
-        if is_anti_kick_whitelisted(guild.id, member.id):
-            print(f"[JOIN] {member} (全域黑名單但在伺服器防踢白名單) 加入伺服器 {guild.name}，允許")
-            embed = discord.Embed(title="[AntiNuke360 記錄]", color=discord.Color.orange())
-            embed.description = (
-                f"被列入全域黑名單的使用者/機器人 `{member}` (ID: `{member.id}`) 被允許加入此伺服器，"
-                "因為其在本伺服器的防踢白名單中。\n\n"
-                "若您要讓特定黑名單用戶在本伺服器中不被自動停權，可以使用 `/add-server-anti-kick` 將其加入防踢白名單。"
-            )
-            embed.add_field(name="伺服器", value=guild.name, inline=True)
-            embed.set_footer(text="AntiNuke360 v1.3.0")
-            try:
-                await send_log(guild, embed=embed)
-            except Exception:
-                pass
+async def wait_for_admin_and_dm(guild_id: int, message: str, sender_display: str):
+    deadline = time.time() + ANNOUNCEMENT_WAIT_TIMEOUT
+    while time.time() < deadline:
+        guild = bot.get_guild(guild_id)
+        if not guild:
             return
-        print(f"[JOIN] {member} (黑名單機器人) 試圖加入伺服器 {guild.name}，立即封鎖")
-        try:
-            blacklist_info = bot_blacklist[user_id_str]
-            ban_reason = blacklist_info.get('reason', '在其他伺服器進行 Nuke 攻擊')
-            await guild.ban(member, reason=f"AntiNuke360: 黑名單機器人 - {ban_reason}")
-            print(f"[BAN] 已封鎖黑名單機器人 {member}")
-            
-            if user_id_str not in notified_bans[guild.id]:
-                notified_bans[guild.id].add(member.id)
-                embed = discord.Embed(title="[AntiNuke360 警報]", color=discord.Color.red())
-                embed.description = (
-                    f"黑名單機器人 `{member}` (ID: `{member.id}`) 試圖加入伺服器被自動封鎖。\n\n"
-                    f"被列入黑名單的原因: {ban_reason}\n\n"
-                    "如果您確定此機器人在本伺服器是被允許的，伺服器擁有者可以使用 `/add-server-anti-kick`，\n"
-                    "將其加入本伺服器的防踢白名單，以避免未來再度被自動封鎖。"
-                )
-                embed.add_field(name="伺服器", value=guild.name, inline=True)
-                embed.set_footer(text="AntiNuke360 v1.3.0")
-                try:
-                    await send_log(guild, embed=embed)
-                except Exception:
-                    pass
-                
-                try:
-                    await member.send(embed=embed)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[BAN ERROR] 無法封鎖 {member}: {e}")
-    elif user_id_str in bot_whitelist:
-        print(f"[JOIN] {member} (全域白名單機器人) 加入伺服器 {guild.name}，允許")
-    elif is_permanent_whitelisted(guild.id, member.id):
-        print(f"[JOIN] {member} (本伺服器永久白名單) 加入伺服器 {guild.name}，允許")
-
-@bot.event
-async def on_webhook_update(channel):
-    guild = channel.guild
-    print(f"[EVENT] {guild.name} 中偵測到 Webhook 操作")
-    try:
-        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.webhook_create):
-            actor = entry.user
-            actor_id_str = str(actor.id)
-            
-            if actor_id_str in bot_blacklist:
-                await take_action(guild, actor, "黑名單機器人")
-                break
-            
-            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
-                break
-            
-            if await track_action(guild, actor, "webhook_create"):
-                asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "行為異常：短時間內大量建立 Webhook")
-            break
-    except Exception:
-        pass
-
-async def handle_anti_hijack(message: discord.Message):
-    guild = message.guild
-    user = message.author
-    gid = guild.id
-    uid = user.id
-    content = message.content
-
-    if not anti_hijack_settings[gid]["enabled"]:
-        return
-
-    if is_permanent_whitelisted(gid, uid):
-        mode = "whitelisted"
-    else:
-        mode = "normal"
-
-    if not content:
-        return
-
-    dq = hijack_tracker[gid][uid][content]
-    now = time.time()
-    dq.append((now, message.channel.id))
-    filtered = [(ts, cid) for (ts, cid) in dq if now - ts <= 5]
-    hijack_tracker[gid][uid][content] = deque(filtered)
-    channels = {cid for _, cid in filtered}
-
-    if len(filtered) >= 3 and len(channels) >= 3:
-        try:
-            await message.delete()
-        except Exception:
-            pass
-
-        mutual_guilds = [g for g in bot.guilds if g.get_member(uid)]
-
-        invite_links = []
-        for g in mutual_guilds:
-            target_channel = g.system_channel
-            if not target_channel:
-                for ch in g.text_channels:
-                    if ch.permissions_for(g.me).create_instant_invite:
-                        target_channel = ch
-                        break
-            if not target_channel:
-                continue
-            try:
-                invite = await target_channel.create_invite(max_age=7 * 24 * 3600, max_uses=1, reason="AntiNuke360: 被盜帳回復用邀請")
-                invite_links.append((g.name, str(invite)))
-            except Exception as e:
-                print(f"[ANTI HIJACK] 無法在伺服器 {g.name} 建立邀請: {e}")
-                continue
-
-        dm_text_lines = [
-            "您好，這裡是 AntiNuke360。",
-            "",
-            "我們偵測到您的帳號在短時間內於多個頻道發送相同訊息，疑似 **被盜帳號或被利用發送詐騙訊息**。",
-            "為了保護伺服器安全，您的帳號已被從相關伺服器中踢出或暫時限制。",
-        ]
-        if invite_links:
-            dm_text_lines.append("")
-            dm_text_lines.append("以下是您曾加入、並安裝 AntiNuke360 的伺服器 7 天一次性邀請連結：")
-            for name, link in invite_links:
-                dm_text_lines.append(f"- {name}: {link}")
-            dm_text_lines.append("")
-            dm_text_lines.append("請在完成安全檢查、更改密碼與二階段驗證後，再透過上述連結重新加入伺服器。")
-        else:
-            dm_text_lines.append("")
-            dm_text_lines.append("目前無法自動為您建立回到各伺服器的邀請連結，請自行聯繫伺服器管理員協助。")
-
-        try:
-            dm = await user.create_dm()
-            dm_text_lines.append("")
-            dm_text_lines.append("若您是在私訊中看到此訊息，代表部份伺服器尚未設定 AntiNuke360 的日誌頻道。")
-            await dm.send("\n".join(dm_text_lines))
-        except Exception as e:
-            print(f"[ANTI HIJACK] 無法 DM 使用者 {user}: {e}")
-
-        embed = discord.Embed(title="[AntiNuke360 - 反被盜帳偵測]", color=discord.Color.red())
-        embed.description = (
-            f"使用者 `{user}` (ID: `{uid}`) 在 5 秒內於多個頻道發送相同訊息，疑似被盜帳號或發送詐騙訊息。\n\n"
-            f"本頻道: {message.channel.mention}\n"
-            f"訊息內容: ```{content[:1500]}```"
-        )
-        embed.set_footer(text="AntiNuke360 v1.3.0")
-        try:
-            await send_log(guild, embed=embed)
-        except Exception:
-            pass
-
-        if mode == "whitelisted":
-            print(f"[ANTI HIJACK] {user} 為永久白名單，僅刪除訊息與通知。")
+        admins = get_admin_candidates(guild)
+        if not admins:
             return
+        for admin in admins:
+            if member_is_online(admin):
+                if await dm_guild_member(admin, message, sender_display):
+                    return
+        await asyncio.sleep(ANNOUNCEMENT_CHECK_INTERVAL)
+    print(f"[ANNOUNCE] 伺服器 {guild_id} 在 12 小時內沒有管理員上線，已取消公告")
 
-        for g in mutual_guilds:
-            member = g.get_member(uid)
-            if not member:
-                continue
-            try:
-                await g.kick(member, reason="AntiNuke360: 疑似被盜帳號 / 詐騙訊息")
-                print(f"[ANTI HIJACK] 已從伺服器 {g.name} 踢出 {member}")
-            except Exception as e:
-                print(f"[ANTI HIJACK] 無法從伺服器 {g.name} 踢出 {member}: {e}")
-
-@bot.event
-async def on_message(message):
-    if not message.guild:
-        return
-
-    guild = message.guild
-    user = message.author
-    gid = guild.id
-    uid = user.id
-    user_id_str = str(uid)
-
-    if user_id_str in bot_blacklist and not is_anti_kick_whitelisted(gid, uid):
-        try:
-            await message.delete()
-            print(f"[BLACKLIST MSG] 已刪除黑名單成員 {user} 的訊息")
-        except Exception as e:
-            print(f"[BLACKLIST MSG] 刪除黑名單訊息失敗: {e}")
-        return
-
-    if user.bot:
-        return
-
-    await handle_anti_hijack(message)
-
-    if user_id_str in bot_blacklist or user_id_str in bot_whitelist:
-        return
-
-    if is_permanent_whitelisted(guild.id, user.id):
-        return
-
-    if await track_action(guild, user, "message_send"):
-        asyncio.create_task(prompt_restore_on_suspect(guild))
-        await take_action(guild, user, "行為異常短時間內大量發送訊息")
-    
-    await bot.process_commands(message)
-
-@bot.event
-async def on_guild_channel_create(channel):
-    guild = channel.guild
-    print(f"[EVENT] {guild.name} 中創建了頻道: {channel.name}")
-    try:
-        async for entry in guild.audit_logs(limit=1, action=discord.AuditLogAction.channel_create):
-            actor = entry.user
-            actor_id_str = str(actor.id)
-            
-            if actor_id_str in bot_blacklist:
-                await take_action(guild, actor, "黑名單機器人")
-                break
-            
-            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
-                break
-            
-            if await track_action(guild, actor, "channel_create"):
-                asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "行為異常：短時間內大量建立頻道")
-            break
-    except Exception:
-        pass
-
-@bot.event
-async def on_guild_channel_delete(channel):
-    guild = channel.guild
-    try:
-        async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.channel_delete):
-            actor = entry.user
-            actor_id_str = str(actor.id)
-            
-            if actor_id_str in bot_blacklist:
-                await take_action(guild, actor, "黑名單機器人")
-                continue
-            
-            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
-                continue
-            
-            if await track_action(guild, actor, "channel_delete"):
-                asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "行為異常：短時間內大量刪除頻道")
-            break
-    except Exception:
-        pass
-
-@bot.event
-async def on_member_remove(member):
-    guild = member.guild
-    await asyncio.sleep(2)
-    try:
-        async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.kick):
-            if entry.target.id == member.id:
-                actor = entry.user
-                actor_id_str = str(actor.id)
-                
-                if actor_id_str in bot_blacklist:
-                    await take_action(guild, actor, "黑名單機器人")
-                    break
-                
-                if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
-                    break
-                
-                if await track_action(guild, actor, "member_kick"):
-                    asyncio.create_task(prompt_restore_on_suspect(guild))
-                    await take_action(guild, actor, "行為異常：短時間內大量踢出成員")
-                break
-    except Exception:
-        pass
-
-@bot.event
-async def on_member_ban(guild, user):
-    try:
-        user_id_str = str(user.id)
-        if user_id_str in bot_blacklist:
-            return
-        
-        async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.ban):
-            if entry.target.id == user.id:
-                actor = entry.user
-                actor_id_str = str(actor.id)
-                
-                if actor_id_str in bot_blacklist:
-                    await take_action(guild, actor, "黑名單機器人")
-                    break
-                
-                if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
-                    break
-                
-                if await track_action(guild, actor, "member_ban"):
-                    asyncio.create_task(prompt_restore_on_suspect(guild))
-                    await take_action(guild, actor, "行為異常：短時間內大量停權成員")
-                break
-    except Exception:
-        pass
-
-@bot.event
-async def on_guild_role_create(role):
-    guild = role.guild
-    try:
-        async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.role_create):
-            actor = entry.user
-            actor_id_str = str(actor.id)
-            
-            if actor_id_str in bot_blacklist:
-                await take_action(guild, actor, "黑名單機器人")
-                break
-            
-            if actor_id_str in bot_whitelist or is_permanent_whitelisted(guild.id, actor.id):
-                break
-            
-            if await track_action(guild, actor, "role_create"):
-                asyncio.create_task(prompt_restore_on_suspect(guild))
-                await take_action(guild, actor, "行為異常：短時間內大量建立身分組")
-            break
-    except Exception:
-        pass
+async def dispatch_global_announcement(guild: discord.Guild, message: str, sender_display: str) -> str:
+    if await try_send_announcement_to_log(guild, message, sender_display):
+        return "log"
+    admins = get_admin_candidates(guild)
+    if not admins:
+        print(f"[ANNOUNCE] 伺服器 {guild.name} 無可聯絡管理員，跳過")
+        return "no_admin"
+    online_admins = [m for m in admins if member_is_online(m)]
+    for admin in online_admins:
+        if await dm_guild_member(admin, message, sender_display):
+            return "dm"
+    schedule_admin_wait_task(guild.id, message, sender_display)
+    print(f"[ANNOUNCE] 伺服器 {guild.name} 無上線管理員，已排程等待")
+    return "scheduled"
 
 # Slash commands
 
@@ -2182,26 +1613,38 @@ async def scan_all_guilds_cmd(interaction: discord.Interaction):
         embed.set_footer(text="AntiNuke360 v1.3.0")
         await interaction.followup.send(embed=embed)
 
-@app_commands.checks.has_permissions(administrator=True)
-@bot.tree.command(name="restore-snapshot", description="還原本伺服器的備份快照 (管理員)")
-async def restore_snapshot_command(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    guild = interaction.guild
-    snapshot = load_snapshot_file(guild.id)
-    if not snapshot or not snapshot_is_valid(snapshot):
-        await interaction.followup.send("伺服器沒有有效的快照可供還原或已過期。", ephemeral=True)
+@bot.tree.command(name="announce-all", description="向所有伺服器發送全服公告 (開發者)")
+@app_commands.describe(message="公告內容")
+async def announce_all(interaction: discord.Interaction, message: str):
+    if interaction.user.id != DEVELOPER_ID:
+        await interaction.response.send_message("只有開發者可以使用此指令", ephemeral=True)
         return
-    remaining = snapshot_time_remaining(snapshot)
-    await interaction.followup.send(
-        f"開始還原快照 (剩餘有效時間: {remaining//3600} 小時 {(remaining%3600)//60} 分鐘)。"
-        "這可能需要一段時間且會先嘗試刪除可刪除的現有頻道與身分組。",
-        ephemeral=True
+    content = message.strip()
+    if not content:
+        await interaction.response.send_message("公告內容不得為空。", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    sender_display = f"{interaction.user} (ID: {interaction.user.id})"
+    stats = {"log": 0, "dm": 0, "scheduled": 0, "no_admin": 0, "error": 0}
+    for guild in bot.guilds:
+        try:
+            result = await dispatch_global_announcement(guild, content, sender_display)
+            if result in stats:
+                stats[result] += 1
+            else:
+                stats["error"] += 1
+        except Exception as e:
+            print(f"[ANNOUNCE ERROR] 無法處理伺服器 {guild.name}: {e}")
+            stats["error"] += 1
+    summary = (
+        "全服公告已處理。\n"
+        f"- 日誌頻道送達：{stats['log']}\n"
+        f"- 線上管理員私訊：{stats['dm']}\n"
+        f"- 等待管理員上線：{stats['scheduled']}\n"
+        f"- 無可聯絡管理員：{stats['no_admin']}\n"
+        f"- 發送失敗：{stats['error']}"
     )
-    ok, msg = await perform_restore(guild, ctx_sender=interaction.user)
-    if ok:
-        await interaction.followup.send(f"還原完成: {msg}", ephemeral=True)
-    else:
-        await interaction.followup.send(f"還原失敗: {msg}", ephemeral=True)
+    await interaction.followup.send(summary, ephemeral=True)
 
 # === 新增：查詢某 ID 是否在黑名單 / 白名單的指令 ===
 
