@@ -1,7 +1,5 @@
 # AntiNuke360
 
-永久免費、永久開源的 Discord 伺服器防護機制
-
 完全開源、社群驅動、100%透明。
 
 ## 功能概述
@@ -11,6 +9,14 @@ AntiNuke360 是一個強大的 Discord 伺服器防護機器人，專門針對 N
 ---
 
 ## 核心功能
+
+### Gemini AI 深度安檢（v2.0 新增）
+
+- 透過 `Gemini 2.5 Pro (gemini-2.5-pro)` 為伺服器提供深度掃描，逐條檢視審核日誌、逐一檢查 bot 權限並輸出建議。每個伺服器與每個發動帳號每 7 天僅能啟動一次掃描，避免濫用。
+- 每分鐘最多 10 次 Gemini 2.5 Pro 請求，如達上限會自動延遲 60 秒後再試，確保批量 key 穩定運作。
+- 新增的 Bot 會自動使用 `Gemini Flash-Lite Latest` 進行多因素審查，結果快取至 `AI_Analyse_Bot/` 目錄，效期 3 天，重複查詢直接讀取快取避免重複扣額。
+- 若判定為可疑 bot，系統會立即在日誌頻道提醒（若已設定），同時自動移除該 bot 的角色與權限。
+- 所有 Gemini 報告都儲存在 `AI_Analyse_Bot/` 內，管理員可使用 `/gemini-bot-report` 指令重看或強制刷新。
 
 ### 自動反 Nuke 防護
 
@@ -278,6 +284,19 @@ CREATE TABLE IF NOT EXISTS snapshots (
 - 所有白名單操作和防護警報都會發送到此頻道
 - 若清除設定，未來事件會改為私訊並附上「未設日誌頻道」提示 (v1.2.4)
 
+### `/gemini-security-scan`
+
+- 需要管理員權限
+- 使用 Gemini 2.5 Pro 深度檢查伺服器，逐條審核日誌、bot 權限與安全建議
+- 每個伺服器與每個帳號 7 天僅能使用一次，並遵守每分鐘 10 次 Gemini 2.5 Pro 請求限制
+- 報告以嵌入訊息回傳，字數自動控制在 Discord 限制內
+
+### `/gemini-bot-report`
+
+- 需要 Manage Server 權限
+- 從 `AI_Analyse_Bot/` 快取讀取或強制刷新指定 bot 的 Gemini 安全報告
+- 回傳風險等級、可疑徵象以及建議措施，協助管理員決策
+
 ### `/toggle-anti-hijack [on/off]`
 
 開啟或關閉反被盜帳功能：
@@ -398,6 +417,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 discord.py>=2.0
 python-dotenv
 mysql-connector-python
+google-generativeai
 ```
 
 ### MySQL 資料表
@@ -447,7 +467,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 
 ---
 
-### 安裝步驟（v1.3.0）
+### 安裝步驟（v2.0）
 
 1. 複製倉庫或下載程式碼。
 2. 建立 `.env` 檔案並設置：
@@ -462,19 +482,21 @@ CREATE TABLE IF NOT EXISTS snapshots (
    MYSQL_DB=your_mysql_database
    ```
 
-3. 安裝依賴：
+3. 在 `cogs/Gemini_keys.txt` 依序填入批量 Gemini API Key（每行一組，允許使用 # 開頭的註解）。
+
+4. 安裝依賴：
 
    ```bash
    pip install -r requirements.txt
    ```
 
-4. 先執行一次資料表建立/匯入腳本（若有）或直接啟動 Bot，程式會自動檢查 `snapshots` 資料表。
+5. 先執行一次資料表建立/匯入腳本（若有）或直接啟動 Bot，程式會自動檢查 `snapshots` 資料表。
 
-5. 執行機器人 (v1.3.0)：
+6. 執行機器人 (v2.0)：
 
-   ```bash
-   python AntiNuke360_v1.3.py
-   ```
+  ```bash
+  python AntiNuke360_v2.0.py
+  ```
 
 ---
 
@@ -490,6 +512,15 @@ CREATE TABLE IF NOT EXISTS snapshots (
 
 ---
 
+### Gemini API 設定
+
+- 將所有 Gemini API Key 逐行填入 `cogs/Gemini_keys.txt`，程式會自動輪替使用。
+- `gemini-2.5-pro-preview` 每分鐘最多觸發 10 次，若到達上限會自動暫停 60 秒後重試，無須人工介入。
+- Bot 分析報告儲存在 `AI_Analyse_Bot/` 中，效期 3 天；刪除此資料夾即可強制全數刷新。
+- 若未安裝 `google-generativeai` 或 key 檔為空，Gemini 擴充功能會停用並在主控台顯示警告。
+
+---
+
 ## 資料儲存（v1.3.0）
 
 機器人使用 **MySQL** 進行主要資料持久化：
@@ -499,6 +530,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 - `server_whitelist` - 各伺服器的本地白名單 (防踢、臨時、永久、log 頻道)
 - `guilds_data` - 伺服器資訊、加入時間、歡迎頻道 ID
 - `snapshots` - 伺服器架構快照（72 小時有效期）
+- `AI_Analyse_Bot/` - Gemini 伺服器/機器人報告快取（3 天效期，可刪除以強制刷新）
 
 舊版 JSON 檔案仍可用匯入腳本轉移到 MySQL：
 
@@ -562,6 +594,16 @@ CREATE TABLE IF NOT EXISTS snapshots (
 ---
 
 ## 更新日誌
+
+### v2.0 (2025年11月20日)
+
+- 新增 `AntiNuke360_v2.0.py`，並支援自動掃描 `cogs/` 目錄以載入擴充包，無須修改主程式即可擴充功能。
+- 推出 `Gemini_AI_Expansion_v1.0`：
+  - `/gemini-security-scan` 使用 Gemini 2.5 Pro 深度分析伺服器，逐條審核日誌並給出行動建議。
+  - `/gemini-bot-report` 讀取/刷新 `AI_Analyse_Bot/` 內的報告，快速掌握特定 bot 的風險狀態。
+  - 新 bot 加入時自動觸發 Gemini Flash-Lite 檢查，若可疑立即通知並移除權限。
+  - 報告快取 3 天並遵守「伺服器+帳號 7 天一次」與「每分鐘 10 次」雙重限制，減少 API 消耗。
+- 新增 `cogs/Gemini_keys.txt` 檔案管理批量 key，並將 `google-generativeai` 納入預設依賴。
 
 ### v1.3.0 (2025年11月19日)
 
